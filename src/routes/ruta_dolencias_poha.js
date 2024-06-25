@@ -13,7 +13,8 @@ ruta.get('/get/:iddolencias_poha', async (req, res) => {
     await dolencias_poha.findByPk(req.params.iddolencias_poha).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -21,7 +22,8 @@ ruta.post('/post/', async (req, res) => {
     await dolencias_poha.create(req.body).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -29,7 +31,8 @@ ruta.put('/put/:iddolencias_poha', async (req, res) => {
     await dolencias_poha.update(req.body, { where: { iddolencias_poha: req.params.iddolencias_poha } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -37,7 +40,8 @@ ruta.delete('/delete/:iddolencias_poha', async (req, res) => {
     await dolencias_poha.destroy({ where: { iddolencias_poha: req.params.iddolencias_poha } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 

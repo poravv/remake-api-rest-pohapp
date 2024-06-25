@@ -10,10 +10,12 @@ ruta.get('/get/', async (req, res) => {
         await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
             res.json(response);
         }).catch((error) => {
-            next(error);
+            console.error(error); 
+            res.status(500).json({ error: `Algo salió mal ${error}` });
         });
     } catch (error) {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     }
 
 
@@ -26,10 +28,12 @@ ruta.get('/getid/:idpoha', async (req, res) => {
         await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
             res.json(response);
         }).catch((error) => {
-            next(error);
+            console.error(error); 
+            res.status(500).json({ error: `Algo salió mal ${error}` });
         });
     } catch (error) {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     }
 
 
@@ -80,7 +84,8 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
         res.json(rs_planta);
 
     } catch (error) {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     }
 
 })

@@ -22,7 +22,7 @@ try {
     routes.use('/api/pohapp/pp',pp)
     routes.use('/api/pohapp/medicinales',medicinales)
 } catch (error) {
-    next(error);
+    res.status(500).json({ error: `Algo salió mal ${error}` });
     //res.json({state:"error",message:"ruta incorrecta"});
 }
 

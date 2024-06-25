@@ -10,7 +10,8 @@ ruta.get('/getsql/:nombre', async (req, res) => {
         { type: QueryTypes.SELECT }).then((response) => {
             res.json(response);
         }).catch((error) => {
-            next(error);
+            console.error(error); 
+            res.status(500).json({ error: `Algo salió mal ${error}` });
         });
 
 })
@@ -20,10 +21,12 @@ ruta.get('/getlimit/', async (req, res) => {
         await database.query('select * from planta limit 100', { type: QueryTypes.SELECT }).then((response) => {
             res.json(response);
         }).catch((error) => {
-            next(error);
+            console.error(error); 
+            res.status(500).json({ error: `Algo salió mal ${error}` });
         });
     } catch (error) {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     }
 })
 
@@ -31,7 +34,8 @@ ruta.get('/get/', async (req, res) => {
     await planta.findAll().then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -39,7 +43,8 @@ ruta.get('/get/:idplanta', async (req, res) => {
     await planta.findByPk(req.params.idplanta).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -48,10 +53,12 @@ ruta.post('/post/', async (req, res) => {
         await planta.create(req.body).then((response) => {
             res.json(response);
         }).catch((error) => {
-            next(error);
+            console.error(error); 
+            res.status(500).json({ error: `Algo salió mal ${error}` });
         });
     } catch (error) {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     }
 })
 
@@ -59,7 +66,8 @@ ruta.put('/put/:idplanta', async (req, res) => {
     await planta.update(req.body, { where: { idplanta: req.params.idplanta } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -67,7 +75,8 @@ ruta.delete('/delete/:idplanta', async (req, res) => {
     await planta.destroy({ where: { idplanta: req.params.idplanta } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 

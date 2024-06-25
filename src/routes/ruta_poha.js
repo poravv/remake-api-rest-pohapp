@@ -10,19 +10,27 @@ const { Op } = require('sequelize');
 
 
 ruta.get('/count/', async (req, res) => {
-    const rs_poha = await poha.count();
-    res.json(rs_poha);
+    await poha.count().then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
+    });
 })
 
 ruta.get('/get/', async (req, res) => {
-    const rs_poha = await poha.findAll({
+    await poha.findAll({
         include: [
             { model: autor },
             { model: poha_planta, include: [{ model: planta }] },
             { model: dolencias_poha, include: [{ model: dolencias }] }
         ]
+    }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
-    res.json(rs_poha);
 })
 
 
@@ -66,7 +74,8 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -102,7 +111,8 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -116,7 +126,8 @@ ruta.get('/get/:idpoha', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -125,11 +136,12 @@ ruta.post('/post/', async (req, res) => {
         await poha.create(req.body).then((response) => {
             res.json(response);
         }).catch((error) => {
-            next(error);
+            res.status(500).json({ error: `Algo salió mal ${error}` });
         });
 
     } catch (error) {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     }
 })
 
@@ -137,7 +149,8 @@ ruta.put('/put/:idpoha', async (req, res) => {
     await poha.update(req.body, { where: { idpoha: req.params.idpoha } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 })
 
@@ -145,7 +158,8 @@ ruta.delete('/delete/:idpoha', async (req, res) => {
     await poha.destroy({ where: { idpoha: req.params.idpoha } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        next(error);
+        console.error(error); 
+        res.status(500).json({ error: `Algo salió mal ${error}` });
     });
 
 })

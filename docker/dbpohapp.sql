@@ -84,7 +84,7 @@ INSERT INTO `dolencias` (`iddolencias`, `descripcion`, `estado`) VALUES
 (25, 'Vómito', 'AC'),
 (26, 'Náuseas', 'AC'),
 (27, 'Contracción del miocardio', 'AC'),
-(28, 'Py\'a hai - Acidez estomacal', 'AC'),
+(28, 'Py`a hai - Acidez estomacal', 'AC'),
 (29, 'Dolor de garganta', 'AC'),
 (30, 'Problemas digestivos', 'AC'),
 (31, 'Gripe, resfríos y congestión nasal ', 'AC'),
@@ -190,9 +190,7 @@ INSERT INTO `poha` (`idpoha`, `preparado`, `estado`, `mate`, `terere`, `te`, `re
 (20, 'Machacado en agua fresca o en tereré', 'AC', 0, 1, 0, 'Beber con moderación ', 18, '34D9bCXRw6eFCR1rA6iIg3IghwV2'),
 (21, 'Machacar en mortero o rayar y vertir en agua caliente para mate o té ', 'AC', 1, 0, 1, 'No dejar hervir mucho tiempo el agua y no consumir en exceso', 19, '34D9bCXRw6eFCR1rA6iIg3IghwV2'),
 (22, '1 cucharadita de anís por cada taza de agua ', 'AC', 1, 0, 1, 'Hervir el agua y posteriormente vertir el anís', 20, '34D9bCXRw6eFCR1rA6iIg3IghwV2'),
-(25, 'Añade una taza de agua a una herbidora, lleva a fuego medio. Cuando el agua comience a hervir agrega la ruda y deja al fuego durante 3 minutos, trascurrido este tiempo retírar y tapar durante 5 minutos para que repose. Colar la infusión de ruda y tomar. \nSe puede consumir machacado en agua.', 'AC', 1, 1, 1, 'Recuerde no tomar más de 3 tazas diarias y nunca consumir esta infusión si sospechas de embarazo.', 23, '1'),
-(26, '', 'PE', 1, 1, 0, 'text', 24, '1'),
-(27, 'text', 'PE', 1, 0, 0, 'text', 25, '1');
+(25, 'Añade una taza de agua a una herbidora, lleva a fuego medio. Cuando el agua comience a hervir agrega la ruda y deja al fuego durante 3 minutos, trascurrido este tiempo retírar y tapar durante 5 minutos para que repose. Colar la infusión de ruda y tomar. \nSe puede consumir machacado en agua.', 'AC', 1, 1, 1, 'Recuerde no tomar más de 3 tazas diarias y nunca consumir esta infusión si sospechas de embarazo.', 23, '1');
 
 -- --------------------------------------------------------
 

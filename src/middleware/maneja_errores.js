@@ -1,5 +1,5 @@
 
 module.exports = function errorHandler(err, req, res, next) {
     console.error(err.stack); 
-    res.status(500).json({ error: `Algo salió mal ${err.stack}` });
+    res.status(500).json({ error: `Algo salió mal ${error}` });
   }
