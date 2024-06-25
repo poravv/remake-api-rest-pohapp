@@ -1,14 +1,15 @@
-const express = require('express')
-const routes = express()
-const dolencias = require('./routes/ruta_dolencias')
-const planta = require('./routes/ruta_planta')
-const autor = require('./routes/ruta_autor')
-const usuario = require('./routes/ruta_usuario')
-const poha = require('./routes/ruta_poha')
-const puntos = require('./routes/ruta_puntos')
-const dp = require('./routes/ruta_dolencias_poha')
-const pp = require('./routes/ruta_poha_planta')
-const medicinales = require('./routes/ruta_medicinales')
+const express = require('express');
+const routes = express();
+const dolencias = require('./routes/ruta_dolencias');
+const planta = require('./routes/ruta_planta');
+const autor = require('./routes/ruta_autor');
+const usuario = require('./routes/ruta_usuario');
+const poha = require('./routes/ruta_poha');
+const puntos = require('./routes/ruta_puntos');
+const dp = require('./routes/ruta_dolencias_poha');
+const pp = require('./routes/ruta_poha_planta');
+const medicinales = require('./routes/ruta_medicinales');
+const graylogLogger = require('./middleware/graylog');
 
 
 try {
@@ -22,7 +23,7 @@ try {
     routes.use('/api/pohapp/pp',pp)
     routes.use('/api/pohapp/medicinales',medicinales)
 } catch (error) {
-    res.status(500).json({ error: `Algo salió mal ${error}` });
+    graylogLogger.log(`Algo salió mal ${error}`);
     //res.json({state:"error",message:"ruta incorrecta"});
 }
 

@@ -1,0 +1,19 @@
+services:
+
+  # Backend
+  pohapp-back:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    depends_on:
+      - db-pohapp
+    image: pohapp-back-image
+    ports:
+      - "3000:3000"
+    environment:
+      DB_PASSWORD: pohapp2024
+      DB_HOST: pohapp-host
+      DB_USER: root
+      DB_PORT: 3306
+      DB_DATABASE: db-pohapp
+    container_name: pohapp-back-container

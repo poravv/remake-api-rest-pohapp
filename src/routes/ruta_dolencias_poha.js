@@ -3,6 +3,7 @@ const ruta = express.Router();
 const dolencias_poha = require('../model/dolencias_poha')
 const dolencias = require('../model/dolencias');
 const poha = require('../model/poha');
+const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/get/', async (req, res) => {
     const rs_dolencias_poha = await dolencias_poha.findAll();
@@ -14,7 +15,7 @@ ruta.get('/get/:iddolencias_poha', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -23,7 +24,7 @@ ruta.post('/post/', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -32,7 +33,7 @@ ruta.put('/put/:iddolencias_poha', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -41,7 +42,7 @@ ruta.delete('/delete/:iddolencias_poha', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 

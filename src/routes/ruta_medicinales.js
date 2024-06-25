@@ -2,7 +2,7 @@ const express = require('express')
 const ruta = express.Router();
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
-
+const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/get/', async (req, res) => {
     try {
@@ -11,11 +11,11 @@ ruta.get('/get/', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            res.status(500).json({ error: `Algo salió mal ${error}` });
+            graylogLogger.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     }
 
 
@@ -29,11 +29,11 @@ ruta.get('/getid/:idpoha', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            res.status(500).json({ error: `Algo salió mal ${error}` });
+            graylogLogger.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     }
 
 
@@ -85,7 +85,7 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
 
     } catch (error) {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     }
 
 })

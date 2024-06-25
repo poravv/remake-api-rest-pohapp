@@ -1,7 +1,7 @@
 const express = require('express');
 const ruta = express.Router();
 const autor = require('../model/autor');
-
+const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/get/', async (req, res) => {
     const rs_autor = await autor.findAll();
@@ -13,7 +13,7 @@ ruta.get('/get/:idautor', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 
 })
@@ -23,7 +23,7 @@ ruta.post('/post/', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 
 })
@@ -33,7 +33,7 @@ ruta.put('/put/:idautor', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -42,7 +42,7 @@ ruta.delete('/delete/:idautor', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 

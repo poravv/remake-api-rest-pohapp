@@ -52,6 +52,7 @@ CREATE TABLE `autor` (
 
 INSERT INTO `autor` (`idautor`, `nombre`, `apellido`, `nacimiento`, `ciudad`, `pais`) VALUES
 (18, 'Andrés', 'Vera', '1995-06-07', 'Capiatá ', 'Paraguay '),
+(1, 'Por', 'Defecto', '1995-06-07', 'Capiatá ', 'Paraguay '),
 (19, 'Andrés ', 'Vera', '1995-06-07', 'Capiatá ', 'Paraguay '),
 (20, 'Andrés ', 'Vera', '1995-06-07', 'Capiatá ', 'Paraguay'),
 (21, '', '', '2022-07-26', '', 'text'),

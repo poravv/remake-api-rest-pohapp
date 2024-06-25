@@ -3,6 +3,7 @@ const ruta = express.Router();
 const dolencias = require('../model/dolencias')
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
+const graylogLogger = require('../middleware/graylog');
 
 
 ruta.get('/getsql/:descripcion', async (req, res) => {
@@ -11,7 +12,7 @@ ruta.get('/getsql/:descripcion', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            res.status(500).json({ error: `Algo salió mal ${error}` });
+            graylogLogger.log(`Algo salió mal ${error}`);
         });
 })
 
@@ -20,7 +21,7 @@ ruta.get('/get/', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -29,7 +30,7 @@ ruta.get('/get/:iddolencias', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -39,10 +40,10 @@ ruta.post('/post/', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            res.status(500).json({ error: `Algo salió mal ${error}` });
+            graylogLogger.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     }
 })
 
@@ -51,7 +52,7 @@ ruta.put('/put/:iddolencias', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -60,7 +61,7 @@ ruta.delete('/delete/:iddolencias', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        res.status(500).json({ error: `Algo salió mal ${error}` });
+        graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
