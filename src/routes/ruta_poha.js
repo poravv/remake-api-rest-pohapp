@@ -27,25 +27,25 @@ ruta.get('/get/', async (req, res) => {
 
 
 ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
-    
+
     const page = parseInt(req.query.page) || 0;
     const pageSize = parseInt(req.query.pageSize) || 10;
     // Calcula el offset
     const offset = (page) * pageSize;
-    
-    const rs_poha = await poha.findAll({
+
+    await poha.findAll({
         limit: pageSize, offset: offset,
         include: [
             { model: autor, },
             {
-                model: poha_planta, required: true,separate: true, include: [{
+                model: poha_planta, required: true, separate: true, include: [{
                     model: planta,
                     required: true,
 
                 }]
             },
             {
-                model: dolencias_poha, required: true,separate: true, include: [{
+                model: dolencias_poha, required: true, separate: true, include: [{
                     model: dolencias,
                     required: true,
                     where: {
@@ -63,12 +63,15 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
                 req.params.terere != 0 ? { terere: req.params.terere } : 0 == 0,
             ],
         }
+    }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
     });
-    res.json(rs_poha);
 })
 
 ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
-    const rs_poha = await poha.findAll({
+    await poha.findAll({
         include: [
             { model: autor },
             {
@@ -96,40 +99,53 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
                 req.params.terere != 0 ? { terere: req.params.terere } : 0 == 0,
             ],
         }
+    }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
     });
-    res.json(rs_poha);
 })
 
 ruta.get('/get/:idpoha', async (req, res) => {
-    const rs_poha = await poha.findByPk(req.params.idpoha, {
+    await poha.findByPk(req.params.idpoha, {
         include: [
             { model: autor },
             { model: poha_planta, include: [{ model: planta }] },
             { model: dolencias_poha, include: [{ model: dolencias }] }
         ]
+    }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
     });
-    res.json(rs_poha);
 })
 
 ruta.post('/post/', async (req, res) => {
     try {
-        const pohaguardado = await poha.create(req.body);
-
-        res.json(pohaguardado);
+        await poha.create(req.body).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
 
     } catch (error) {
-        console.log(error)
+        next(error);
     }
 })
 
 ruta.put('/put/:idpoha', async (req, res) => {
-    const rs_poha = await poha.update(req.body, { where: { idpoha: req.params.idpoha } });
-    res.json(rs_poha);
+    await poha.update(req.body, { where: { idpoha: req.params.idpoha } }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 ruta.delete('/delete/:idpoha', async (req, res) => {
-    await poha.destroy({ where: { idpoha: req.params.idpoha } }).then((value) => {
-        res.json(value);
+    await poha.destroy({ where: { idpoha: req.params.idpoha } }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
     });
 
 })

@@ -6,37 +6,56 @@ const { QueryTypes } = require('sequelize');
 
 
 ruta.get('/getsql/:descripcion', async (req, res) => {
-    const rs_planta = await database.query(`select * from dolencias where upper(descripcion) like(upper('%${req.params.descripcion}%'))`, { type: QueryTypes.SELECT })
-    res.json(rs_planta);
+    await database.query(`select * from dolencias where upper(descripcion) like(upper('%${req.params.descripcion}%'))`,
+        { type: QueryTypes.SELECT }).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
 })
 
 ruta.get('/get/', async (req, res) => {
-    const rs_dolencias = await dolencias.findAll();
-    res.json(rs_dolencias);
+    await dolencias.findAll().then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 ruta.get('/get/:iddolencias', async (req, res) => {
-    const rs_dolencias = await dolencias.findByPk(req.params.iddolencias);
-    res.json(rs_dolencias);
+    await dolencias.findByPk(req.params.iddolencias).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 ruta.post('/post/', async (req, res) => {
     try {
-        const rs_dolencias = await dolencias.create(req.body);
-        res.json(rs_dolencias);
+        await dolencias.create(req.body).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
     } catch (error) {
-        return null;
+        next(error);
     }
 })
 
 ruta.put('/put/:iddolencias', async (req, res) => {
-    const rs_dolencias = await dolencias.update(req.body, { where: { iddolencias: req.params.iddolencias } });
-    res.json(rs_dolencias);
+    await dolencias.update(req.body, { where: { iddolencias: req.params.iddolencias } }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 ruta.delete('/delete/:iddolencias', async (req, res) => {
-    const rs_dolencias = await dolencias.destroy({ where: { iddolencias: req.params.iddolencias } });
-    res.json(rs_dolencias);
+    await dolencias.destroy({ where: { iddolencias: req.params.iddolencias } }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 

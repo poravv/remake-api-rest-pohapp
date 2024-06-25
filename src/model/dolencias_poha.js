@@ -16,7 +16,7 @@ const dolencias_poha = database.define('dolencias_poha', {
         type: DataTypes.STRING,
     }
 },{
-    tableName:"Dolencias_poha",
+    tableName:"dolencias_poha",
     timestamps:false
 });
 

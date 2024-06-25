@@ -23,7 +23,7 @@ const planta = database.define('planta',{
         type:DataTypes.BLOB,
     }
 },{
-    tableName:"Planta",
+    tableName:"planta",
     timestamps:false
 })
 

@@ -3,37 +3,52 @@ const ruta = express.Router();
 const usuario = require('../model/usuario')
 
 ruta.get('/get/', async (req, res) => {
-    const rs_usuario = await usuario.findAll();
-    res.json(rs_usuario);
+    await usuario.findAll().then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 ruta.get('/get/:idusuario', async (req, res) => {
     try {
-        const rs_usuario = await usuario.findByPk(req.params.idusuario);
-        res.json(rs_usuario);
+        await usuario.findByPk(req.params.idusuario).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
     } catch (error) {
-        res.json({ error: "Error" });
+        next(error);
     }
 })
 
 ruta.post('/post/', async (req, res) => {
     try {
-        const rs_usuario = await usuario.create(req.body);
-        res.json(rs_usuario);
+        await usuario.create(req.body).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
     } catch (error) {
-        res.json({ 'mensaje': 'Error en el registro' });
+        next(error);
     }
 
 })
 
 ruta.put('/put/:idusuario', async (req, res) => {
-    const rs_usuario = await usuario.update(req.body, { where: { idusuario: req.params.idusuario } });
-    res.json(rs_usuario);
+    await usuario.update(req.body, { where: { idusuario: req.params.idusuario } }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 ruta.delete('/delete/:idusuario', async (req, res) => {
-    const rs_usuario = await usuario.destroy({ where: { idusuario: req.params.idusuario } });
-    res.json(rs_usuario);
+    await usuario.destroy({ where: { idusuario: req.params.idusuario } }).then((response) => {
+        res.json(response);
+    }).catch((error) => {
+        next(error);
+    });
 })
 
 

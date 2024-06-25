@@ -32,7 +32,7 @@ const autor = database.define('autor',{
         allowNull:false
     }
 },{
-    tableName:"Autor",
+    tableName:"autor",
     timestamps:false
 })
 

@@ -19,7 +19,7 @@ const usuario = database.define('usuario',{
         type:DataTypes.STRING,
     }
 },{
-    tableName:"Usuario",
+    tableName:"usuario",
     timestamps:false
 })
 

@@ -16,7 +16,7 @@ const poha_planta = database.define('poha_planta', {
         type: DataTypes.STRING,
     }
 },{
-    tableName:"Poha_planta",
+    tableName:"poha_planta",
     timestamps:false
 });
 

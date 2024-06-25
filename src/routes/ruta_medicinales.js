@@ -6,12 +6,14 @@ const { QueryTypes } = require('sequelize');
 
 ruta.get('/get/', async (req, res) => {
     try {
-
         const query = `select * from vw_medicina`;
-        rs_planta = await database.query(query, { type: QueryTypes.SELECT })
-        res.json(rs_planta);
+        await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
     } catch (error) {
-        return null
+        next(error);
     }
 
 
@@ -21,10 +23,13 @@ ruta.get('/getid/:idpoha', async (req, res) => {
     try {
 
         const query = `select * from vw_medicina where idpoha = ${req.params.idpoha}`;
-        rs_planta = await database.query(query, { type: QueryTypes.SELECT })
-        res.json(rs_planta);
+        await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
+            res.json(response);
+        }).catch((error) => {
+            next(error);
+        });
     } catch (error) {
-        return null
+        next(error);
     }
 
 
@@ -75,7 +80,7 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
         res.json(rs_planta);
 
     } catch (error) {
-        return null
+        next(error);
     }
 
 })

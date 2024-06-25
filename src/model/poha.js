@@ -38,7 +38,7 @@ const poha = database.define('poha',{
         type:DataTypes.STRING,
     },
 },{
-    tableName:"Poha",
+    tableName:"poha",
     timestamps:false
 })
 

@@ -11,14 +11,19 @@ const pp = require('./routes/ruta_poha_planta')
 const medicinales = require('./routes/ruta_medicinales')
 
 
-routes.use('/api/pohapp/dolencias',dolencias)
-routes.use('/api/pohapp/planta',planta)
-routes.use('/api/pohapp/autor',autor)
-routes.use('/api/pohapp/usuario',usuario)
-routes.use('/api/pohapp/poha',poha)
-routes.use('/api/pohapp/puntos',puntos)
-routes.use('/api/pohapp/dp',dp)
-routes.use('/api/pohapp/pp',pp)
-routes.use('/api/pohapp/medicinales',medicinales)
+try {
+    routes.use('/api/pohapp/dolencias',dolencias)
+    routes.use('/api/pohapp/planta',planta)
+    routes.use('/api/pohapp/autor',autor)
+    routes.use('/api/pohapp/usuario',usuario)
+    routes.use('/api/pohapp/poha',poha)
+    routes.use('/api/pohapp/puntos',puntos)
+    routes.use('/api/pohapp/dp',dp)
+    routes.use('/api/pohapp/pp',pp)
+    routes.use('/api/pohapp/medicinales',medicinales)
+} catch (error) {
+    next(error);
+    //res.json({state:"error",message:"ruta incorrecta"});
+}
 
 module.exports= routes;

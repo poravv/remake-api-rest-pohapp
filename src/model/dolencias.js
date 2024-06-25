@@ -16,7 +16,7 @@ const dolencias = database.define('dolencias',{
         allowNull:false
     }
 },{
-    tableName:"Dolencias",
+    tableName:"dolencias",
     timestamps:false
 });
 

@@ -21,7 +21,7 @@ const puntos = database.define('puntos',{
         allowNull:false
     },
 },{
-    tableName:"Puntos",
+    tableName:"puntos",
     timestamps:false
 })
 
