@@ -7,14 +7,14 @@ const autor = require('../model/autor');
 const planta = require('../model/planta');
 const dolencias = require('../model/dolencias');
 const { Op } = require('sequelize');
-const graylogLogger = require('../middleware/graylog');
+//const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/count/', async (req, res) => {
     await poha.count().then((response) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -29,7 +29,7 @@ ruta.get('/get/', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -75,7 +75,7 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -112,7 +112,7 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -127,7 +127,7 @@ ruta.get('/get/:idpoha', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -136,12 +136,12 @@ ruta.post('/post/', async (req, res) => {
         await poha.create(req.body).then((response) => {
             res.json(response);
         }).catch((error) => {
-            graylogLogger.log(`Algo salió mal ${error}`);
+            //graylogLogger.log(`Algo salió mal ${error}`);
         });
 
     } catch (error) {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
         
     }
 })
@@ -151,7 +151,7 @@ ruta.put('/put/:idpoha', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -160,7 +160,7 @@ ruta.delete('/delete/:idpoha', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 
 })

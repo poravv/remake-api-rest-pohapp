@@ -1,14 +1,14 @@
 const express = require('express')
 const ruta = express.Router();
 const usuario = require('../model/usuario');
-const graylogLogger = require('../middleware/graylog');
+//const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/get/', async (req, res) => {
     await usuario.findAll().then((response) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -18,11 +18,11 @@ ruta.get('/get/:idusuario', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            graylogLogger.log(`Algo salió mal ${error}`);
+            //graylogLogger.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     }
 })
 
@@ -32,11 +32,11 @@ ruta.post('/post/', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            graylogLogger.log(`Algo salió mal ${error}`);
+            //graylogLogger.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     }
 
 })
@@ -46,7 +46,7 @@ ruta.put('/put/:idusuario', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -55,7 +55,7 @@ ruta.delete('/delete/:idusuario', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        graylogLogger.log(`Algo salió mal ${error}`);
+        //graylogLogger.log(`Algo salió mal ${error}`);
     });
 })
 

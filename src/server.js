@@ -4,7 +4,7 @@ const database = require('./database');
 const rutas = require('./config_rutas');
 const port = process.env.PORT || 3000;
 const cors = require('cors');
-const graylogLogger = require('./middleware/graylog');
+//const graylogLogger = require('./middleware/graylog');
 
 app.use(cors());/*aplica permiso para todos los origenes*/
 
@@ -18,7 +18,7 @@ const conecta = async () => {
         console.log("Base de datos conectada");
         graylogLogger.log("Conectada a la base de datos");
     } catch (error) {
-        graylogLogger.log(`Error ${error}`);
+        //graylogLogger.log(`Error ${error}`);
         console.log("Error: ", error)
     }
 }
