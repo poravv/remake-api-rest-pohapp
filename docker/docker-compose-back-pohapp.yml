@@ -31,5 +31,5 @@ services:
       DB_HOST: pohapp-host
       DB_USER: root
       DB_PORT: 3306
-      DB_DATABASE: db-pohapp
+      DB_NAME: db-pohapp
     container_name: pohapp-back-container
