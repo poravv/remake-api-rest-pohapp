@@ -9,7 +9,6 @@ const puntos = require('./routes/ruta_puntos');
 const dp = require('./routes/ruta_dolencias_poha');
 const pp = require('./routes/ruta_poha_planta');
 const medicinales = require('./routes/ruta_medicinales');
-//const graylogLogger = require('./middleware/graylog');
 
 
 try {
@@ -23,7 +22,7 @@ try {
     routes.use('/api/pohapp/pp',pp)
     routes.use('/api/pohapp/medicinales',medicinales)
 } catch (error) {
-    //graylogLogger.log(`Algo salió mal ${error}`);
+    console.log(`Algo salió mal ${error}`);
     //res.json({state:"error",message:"ruta incorrecta"});
 }
 

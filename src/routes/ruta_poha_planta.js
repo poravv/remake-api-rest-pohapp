@@ -1,14 +1,13 @@
 const express = require('express')
 const ruta = express.Router();
 const poha_planta = require('../model/poha_planta')
-//const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/get/', async (req, res) => {
     await poha_planta.findAll().then((response) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -17,7 +16,7 @@ ruta.get('/get/:idpoha_planta', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -26,7 +25,7 @@ ruta.post('/post/', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -35,7 +34,7 @@ ruta.put('/put/:idpoha_planta', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -44,7 +43,7 @@ ruta.delete('/delete/:idpoha_planta', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 

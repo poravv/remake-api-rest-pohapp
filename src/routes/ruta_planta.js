@@ -3,7 +3,6 @@ const ruta = express.Router();
 const planta = require('../model/planta')
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
-//const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/getsql/:nombre', async (req, res) => {
     await database.query(`select idplanta,nombre,descripcion,estado from planta where upper(nombre) like(upper('%${req.params.nombre}%'))`,
@@ -11,7 +10,7 @@ ruta.get('/getsql/:nombre', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            //graylogLogger.log(`Algo salió mal ${error}`);
+            console.log(`Algo salió mal ${error}`);
         });
 
 })
@@ -22,11 +21,11 @@ ruta.get('/getlimit/', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            //graylogLogger.log(`Algo salió mal ${error}`);
+            console.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     }
 })
 
@@ -35,7 +34,7 @@ ruta.get('/get/', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -44,7 +43,7 @@ ruta.get('/get/:idplanta', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -54,11 +53,11 @@ ruta.post('/post/', async (req, res) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
-            //graylogLogger.log(`Algo salió mal ${error}`);
+            console.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     }
 })
 
@@ -67,7 +66,7 @@ ruta.put('/put/:idplanta', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -76,7 +75,7 @@ ruta.delete('/delete/:idplanta', async (req, res) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 

@@ -7,14 +7,13 @@ const autor = require('../model/autor');
 const planta = require('../model/planta');
 const dolencias = require('../model/dolencias');
 const { Op } = require('sequelize');
-//const graylogLogger = require('../middleware/graylog');
 
 ruta.get('/count/', async (req, res) => {
     await poha.count().then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -28,13 +27,13 @@ ruta.get('/get/', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
 
-ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
+ruta.get('/getindex/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
 
     const page = parseInt(req.query.page) || 0;
     const pageSize = parseInt(req.query.pageSize) || 10;
@@ -49,7 +48,11 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
                 model: poha_planta, required: true, separate: true, include: [{
                     model: planta,
                     required: true,
-
+                    where: {
+                        [Op.and]: [
+                            req.params.idplanta != 0 ? { idplanta: req.params.idplanta } : 0 == 0
+                        ],
+                    },
                 }]
             },
             {
@@ -74,12 +77,12 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
-ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
+ruta.get('/get/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
     await poha.findAll({
         include: [
             { model: autor },
@@ -87,6 +90,11 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
                 model: poha_planta, required: true, include: [{
                     model: planta,
                     required: true,
+                    where: {
+                        [Op.and]: [
+                            req.params.idplanta != 0 ? { idplanta: req.params.idplanta } : 0 == 0
+                        ],
+                    },
                 }]
             },
             {
@@ -111,8 +119,8 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
@@ -126,23 +134,28 @@ ruta.get('/get/:idpoha', async (req, res) => {
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
 ruta.post('/post/', async (req, res) => {
+    console.log('Entra en post');
+    console.log(req.body);
     try {
         await poha.create(req.body).then((response) => {
+
+            console.log(response)
+
             res.json(response);
         }).catch((error) => {
-            //graylogLogger.log(`Algo salió mal ${error}`);
+            console.log(`Algo salió mal ${error}`);
         });
 
     } catch (error) {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
-        
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
+
     }
 })
 
@@ -150,17 +163,36 @@ ruta.put('/put/:idpoha', async (req, res) => {
     await poha.update(req.body, { where: { idpoha: req.params.idpoha } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 })
 
 ruta.delete('/delete/:idpoha', async (req, res) => {
+    
+    await poha_planta.destroy({
+        where: {
+            idpoha: req.params.idpoha,
+        }
+    }).catch((error) => {
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
+    });
+
+    await dolencias_poha.destroy({
+        where: {
+            idpoha: req.params.idpoha,
+        }
+    }).catch((error) => {
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
+    });
+
     await poha.destroy({ where: { idpoha: req.params.idpoha } }).then((response) => {
         res.json(response);
     }).catch((error) => {
-        console.error(error); 
-        //graylogLogger.log(`Algo salió mal ${error}`);
+        console.error(error);
+        console.log(`Algo salió mal ${error}`);
     });
 
 })
