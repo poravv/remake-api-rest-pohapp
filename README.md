@@ -96,6 +96,33 @@ Puedes probar los modelos con el script incluido:
 node test_models.js
 ```
 
+## Ejecutar pruebas
+
+Para verificar el correcto funcionamiento de los modelos ONNX, puedes ejecutar las pruebas automatizadas:
+
+```bash
+# Ejecutar todas las pruebas disponibles
+node tests/index.js
+
+# Ejecutar una prueba específica
+node tests/index.js --test=full
+
+# Pruebas disponibles
+node tests/index.js --test=init     # Prueba de inicialización de modelos
+node tests/index.js --test=models   # Prueba básica de modelos
+node tests/index.js --test=simple   # Prueba simple de validación
+node tests/index.js --test=interpret # Prueba de interpretación de consultas
+node tests/index.js --test=search   # Prueba de búsqueda por lenguaje natural
+node tests/index.js --test=full     # Prueba completa de integración
+```
+
+Las pruebas verifican:
+- Carga correcta de modelos ONNX
+- Validación de texto
+- Interpretación de consultas en lenguaje natural
+- Búsqueda por lenguaje natural
+- Sistema de firma para endpoints administrativos
+
 ## Dependencias principales
 
 - Express: Framework web

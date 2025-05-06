@@ -1,6 +1,6 @@
 # Guía de Implementación - POHAPP Validator AI
 
-Esta guía detalla cómo implementar el validador de texto y el intérprete de consultas en un backend Node.js.
+Esta guía detalla cómo se ha implementado el validador de texto y el intérprete de consultas en el backend Node.js de la aplicación POHAPP.
 
 ## Contenido
 1. [Estructura de archivos](#estructura-de-archivos)
@@ -10,333 +10,236 @@ Esta guía detalla cómo implementar el validador de texto y el intérprete de c
 5. [Interpretación de consultas](#interpretación-de-consultas)
 6. [Búsqueda en base de datos](#búsqueda-en-base-de-datos)
 7. [Integración con Express](#integración-con-express)
-8. [Uso en Frontend](#uso-en-frontend)
-9. [Optimización y consideraciones](#optimización-y-consideraciones)
+8. [Optimización y seguridad](#optimización-y-seguridad)
+9. [Pruebas](#pruebas)
 
 ## Estructura de archivos
 
-Para implementar la funcionalidad en tu backend Node.js, necesitas copiar los siguientes archivos de la carpeta `deploy`:
+La implementación sigue la siguiente estructura de archivos:
 
 ```
-├── models/
+├── src/
+│   ├── utils/
+│   │   ├── validators.js       # Implementación principal de modelos IA
+│   │   ├── joblib_loader.js    # Cargador de archivos joblib para vectorizadores
+│   │   ├── model_config.js     # Configuración de fallback para modelos
+│   │   └── security.js         # Sistema de firma para endpoints administrativos
+│   ├── routes/
+│   │   └── ruta_ia.js          # Endpoints de la API para funcionalidades IA
+├── ONNX/                       # Carpeta con modelos y vectorizadores
 │   ├── validation_model_v20250504.onnx
 │   ├── validation_vectorizer_v20250504.joblib
 │   ├── interpreter_model_v20250504.onnx
 │   ├── interpreter_vectorizer_v20250504.joblib
 │   └── interpreter_categories_v20250504.joblib
+├── tests/                      # Scripts de prueba
+│   ├── index.js                # Ejecutor principal de pruebas
+│   ├── test_models.js          # Prueba de modelos básica
+│   ├── full_integration_test.js # Prueba completa de integración
+│   └── ... (otros tests)
 ```
 
 ## Instalación de dependencias
 
-Primero, instala las dependencias necesarias en tu proyecto Node.js:
+Las dependencias necesarias para el proyecto están en el `package.json`:
+
+```json
+"dependencies": {
+  "onnxruntime-node": "^1.17.0",
+  "express": "^4.18.1",
+  "mysql2": "^2.3.3",
+  "sequelize": "^6.21.3",
+  "dotenv": "^16.0.1",
+  "cors": "^2.8.5"
+}
+```
+
+Además, se requieren las siguientes dependencias de Python para el cargador de joblib:
 
 ```bash
-npm install onnxruntime-node node-joblib
+pip install joblib scikit-learn numpy
 ```
 
 ## Carga de modelos
 
-Crea un módulo para gestionar los modelos:
+La carga de modelos se realiza en el módulo `validators.js` con un sistema robusto de fallback que utiliza simulaciones cuando los modelos reales no están disponibles:
 
 ```javascript
-// validators.js
-const ort = require('onnxruntime-node');
-const joblib = require('node-joblib');
-const path = require('path');
-
-// Configuración de rutas y versión
-const MODELS_DIR = path.join(__dirname, 'models');
-const VERSION = 'v20250504'; // Usa la versión actual de tus modelos
-
-// Variables para almacenar las sesiones y vectorizadores
-let validationSession;
-let validationVectorizer;
-let interpreterSession;
-let interpreterVectorizer;
-let interpreterCategories;
-
 // Inicialización de modelos
 async function initModels() {
   try {
     console.log('Inicializando modelos ONNX...');
     
     // Cargar modelo de validación
-    validationSession = await ort.InferenceSession.create(
-      path.join(MODELS_DIR, `validation_model_${VERSION}.onnx`)
-    );
-    validationVectorizer = await joblib.load(
-      path.join(MODELS_DIR, `validation_vectorizer_${VERSION}.joblib`)
-    );
+    try {
+      validationSession = await ort.InferenceSession.create(
+        path.join(MODELS_DIR, `validation_model_${VERSION}.onnx`)
+      );
+      console.log('Modelo de validación ONNX cargado correctamente');
+    } catch (err) {
+      console.warn('Error al cargar modelo de validación ONNX:', err.message);
+      console.warn('Usando simulación para validación');
+    }
     
-    // Cargar modelo de interpretación
-    interpreterSession = await ort.InferenceSession.create(
-      path.join(MODELS_DIR, `interpreter_model_${VERSION}.onnx`)
-    );
-    interpreterVectorizer = await joblib.load(
-      path.join(MODELS_DIR, `interpreter_vectorizer_${VERSION}.joblib`)
-    );
-    interpreterCategories = await joblib.load(
-      path.join(MODELS_DIR, `interpreter_categories_${VERSION}.joblib`)
-    );
+    // Y similares para otros modelos...
     
-    console.log('Modelos cargados correctamente');
     return true;
   } catch (error) {
-    console.error('Error al inicializar modelos:', error);
-    return false;
+    // Usar configuraciones simuladas como último recurso
+    console.warn('Usando configuración básica como fallback');
+    return true; // Retornamos true para que la aplicación pueda continuar
   }
 }
-
-module.exports = { initModels };
 ```
 
 ## Validación de texto
 
-Agrega la función de validación de texto al módulo:
+La validación de texto implementa un sistema con dos modos: uso del modelo ONNX real y simulación como fallback:
 
 ```javascript
-// Continúa en validators.js
-// ...
-
 // Función de validación de texto
 async function validateText(text) {
   try {
-    if (!validationSession || !validationVectorizer) {
-      throw new Error('Modelos de validación no inicializados');
-    }
-    
     // Preprocesar texto (simplificado)
     const processedText = text.toLowerCase();
     
-    // Vectorizar texto (utilizando el vectorizador exportado)
-    const textVector = await validationVectorizer.transform([processedText]);
-    const textVectorFloat = new Float32Array(textVector.data);
+    // Si tenemos la sesión y el vectorizador, usamos el modelo real
+    if (validationSession && validationVectorizer) {
+      console.log('Usando modelo real para validación');
+      
+      // Vectorizar texto y ejecutar inferencia...
+      
+      return {
+        isValid,
+        confidence,
+        confidence_str: confidence.toFixed(4),
+        score: probabilities[1] || 0,
+        using_model: true
+      };
+    }
     
-    // Preparar entrada para el modelo
-    const inputTensor = new ort.Tensor('float32', textVectorFloat, [1, textVector.shape[1]]);
-    const feeds = { [validationSession.inputNames[0]]: inputTensor };
+    // SIMULACIÓN si no tenemos modelo o falló la inferencia
+    console.log('Usando simulación para validación de texto');
     
-    // Ejecutar inferencia
-    const results = await validationSession.run(feeds);
-    
-    // Procesar resultados
-    const outputLabel = results[validationSession.outputNames[0]];
-    const outputProbs = results[validationSession.outputNames[1]];
-    
-    const label = outputLabel.data[0];
-    const probabilities = Array.from(outputProbs.data);
-    const confidence = probabilities[label];
-    const isValid = label === 1;
+    // Lógica simple de simulación...
     
     return {
-      isValid,
-      confidence,
-      score: probabilities[1] || 0
+      // Resultados simulados...
+      using_model: false,
+      simulated: true
     };
   } catch (error) {
-    console.error('Error en validación de texto:', error);
-    return { 
-      isValid: false, 
-      confidence: 0, 
-      score: 0, 
-      error: error.message 
-    };
+    // Manejo de errores...
   }
 }
-
-// Modificar exports
-module.exports = { initModels, validateText };
 ```
 
 ## Interpretación de consultas
 
-Agrega la función de interpretación de consultas:
+La interpretación de consultas sigue una estructura similar, con un sistema de simulación para casos donde el modelo no está disponible:
 
 ```javascript
-// Continúa en validators.js
-// ...
-
 // Función de interpretación de consultas
 async function interpretQuery(query) {
   try {
-    if (!interpreterSession || !interpreterVectorizer) {
-      throw new Error('Modelos de interpretación no inicializados');
-    }
+    // Código similar a validateText, con sistema de modelo real y fallback...
     
-    // Preprocesar consulta (simplificado)
-    const processedQuery = query.toLowerCase();
+    // SIMULACIÓN: identificar palabras clave en consulta
+    const keywords = {
+      'dolor': 0,
+      'cabeza': 0,
+      'gripe': 1,
+      // ...más palabras clave y categorías...
+    };
     
-    // Vectorizar consulta
-    const queryVector = await interpreterVectorizer.transform([processedQuery]);
-    const queryVectorFloat = new Float32Array(queryVector.data);
-    
-    // Preparar entrada para el modelo
-    const inputTensor = new ort.Tensor('float32', queryVectorFloat, [1, queryVector.shape[1]]);
-    const feeds = { [interpreterSession.inputNames[0]]: inputTensor };
-    
-    // Ejecutar inferencia
-    const results = await interpreterSession.run(feeds);
-    
-    // Procesar resultados
-    const outputLabel = results[interpreterSession.outputNames[0]];
-    const outputProbs = results[interpreterSession.outputNames[1]];
-    
-    const labelId = outputLabel.data[0];
-    const probabilities = Array.from(outputProbs.data);
-    const confidence = probabilities[labelId];
-    
-    // Obtener nombre de categoría
-    let categoryName = null;
-    if (interpreterCategories && labelId < interpreterCategories.length) {
-      categoryName = interpreterCategories[labelId];
-    }
+    // Lógica de simulación...
     
     return {
-      categoryId: labelId,
+      categoryId: maxCategoryId,
       categoryName,
-      confidence,
-      probabilities: probabilities.map((p, i) => ({ id: i, probability: p }))
+      confidence: probabilities[maxCategoryId] || 0.7,
+      // ...resto de datos...
+      using_model: false,
+      simulated: true
     };
   } catch (error) {
-    console.error('Error en interpretación de consulta:', error);
-    return { 
-      categoryId: -1, 
-      categoryName: null, 
-      confidence: 0, 
-      error: error.message 
-    };
+    // Manejo de errores...
   }
 }
-
-// Actualizar exports
-module.exports = { initModels, validateText, interpretQuery };
 ```
 
 ## Búsqueda en base de datos
 
-Implementa la función de búsqueda que usa la interpretación de consultas:
+La búsqueda implementa un sistema de caché para optimizar consultas repetidas:
 
 ```javascript
-// Continuación en validators.js
-// ...
+// Cache para resultados de búsqueda con límite de tiempo y tamaño
+const searchCache = new Map();
+const CACHE_MAX_SIZE = 500;
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas
 
-// Función para buscar en la base de datos MySQL
-async function searchPohaByQuery(query, dbConnection) {
+// Función para buscar en la base de datos
+async function searchPohaByQuery(query, database) {
   try {
-    // Interpretar la consulta
+    // Normalizar consulta para clave de caché
+    const cacheKey = query.trim().toLowerCase();
+    
+    // Verificar caché
+    if (searchCache.has(cacheKey)) {
+      console.log('Resultado obtenido de caché');
+      const cachedResult = searchCache.get(cacheKey);
+      // Actualizar el timestamp para indicar que se usó recientemente
+      cachedResult.timestamp = Date.now();
+      return cachedResult;
+    }
+
+    // Interpretar la consulta usando el modelo o simulación
     const interpretation = await interpretQuery(query);
     
-    if (!interpretation.categoryName) {
-      return { 
-        success: false, 
-        error: 'No se pudo interpretar la consulta' 
-      };
-    }
-    
-    // Extraer palabras clave adicionales (simplificado)
-    const keywords = query.toLowerCase()
-      .split(' ')
-      .filter(w => w.length > 3)
-      .slice(0, 3);
-    
-    // Construir consulta SQL
-    let sql = `
-      SELECT idpoha, preparado, recomendacion
-      FROM vwpoha
+    // Consulta SQL con parámetros para prevenir SQL injection
+    const sql = `
+      SELECT 
+        p.idpoha, 
+        p.preparado, 
+        p.recomendacion,
+        // ...más campos...
+      FROM 
+        poha p
+      // ...joins y condiciones...
       WHERE 
-        dolencias LIKE ? OR
-        plantas_nombres LIKE ? OR
-        plantas_cientificos LIKE ? OR
-        preparado LIKE ? OR
-        recomendacion LIKE ?
-      LIMIT 50
+        p.estado = 'AC' AND (
+        d.descripcion LIKE ? OR
+        pl.nombre LIKE ? OR
+        // ...más condiciones...
+      )
     `;
+
+    // Almacenar en caché antes de devolver
+    result.timestamp = Date.now();
+    searchCache.set(cacheKey, result);
     
-    const category = interpretation.categoryName;
-    const searchParams = [
-      `%${category}%`,
-      `%${category}%`,
-      `%${category}%`,
-      `%${category}%`,
-      `%${category}%`
-    ];
-    
-    // Ejecutar consulta SQL
-    return new Promise((resolve, reject) => {
-      dbConnection.query(sql, searchParams, (err, results) => {
-        if (err) {
-          reject({ success: false, error: err.message });
-        } else {
-          resolve({
-            success: true,
-            interpretedCategory: category,
-            confidence: interpretation.confidence,
-            results: results,
-            query: sql,
-            keywords
-          });
-        }
-      });
-    });
+    return result;
   } catch (error) {
-    console.error('Error en búsqueda:', error);
-    return { 
-      success: false, 
-      error: error.message 
-    };
+    // Manejo de errores...
   }
 }
-
-// Exportar todas las funciones
-module.exports = {
-  initModels,
-  validateText,
-  interpretQuery,
-  searchPohaByQuery
-};
 ```
 
 ## Integración con Express
 
-Integra las funciones con tu aplicación Express:
+Las rutas se han implementado en `ruta_ia.js` con funciones de middleware para limitación de velocidad (rate limiting) y verificación de firmas:
 
 ```javascript
-// app.js
-const express = require('express');
-const mysql = require('mysql2');
-const validators = require('./validators');
-
-const app = express();
-app.use(express.json());
-
-// Configuración de MySQL
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3308,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE || 'db-pohapp'
-});
-
-// Inicializar modelos al arrancar
-(async () => {
-  const initialized = await validators.initModels();
-  if (!initialized) {
-    console.error('No se pudieron inicializar los modelos ONNX');
-    process.exit(1);
-  }
-})();
-
 // Ruta para validar texto
-app.post('/api/validate', async (req, res) => {
-  const { text } = req.body;
+router.post('/validar', rateLimiter, async (req, res) => {
+  const { texto } = req.body;
   
-  if (!text) {
-    return res.status(400).json({ success: false, error: 'Se requiere texto para validar' });
+  if (!texto || texto.length > 1000) {
+    return res.status(400).json({ success: false, error: 'Texto inválido o demasiado largo' });
   }
   
   try {
-    const result = await validators.validateText(text);
+    const result = await validators.validateText(texto);
     res.json({ success: true, ...result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -344,153 +247,97 @@ app.post('/api/validate', async (req, res) => {
 });
 
 // Ruta para buscar por consulta en lenguaje natural
-app.get('/api/search', async (req, res) => {
-  const { query } = req.query;
-  
-  if (!query) {
-    return res.status(400).json({ success: false, error: 'Se requiere una consulta para buscar' });
-  }
-  
-  try {
-    const result = await validators.searchPohaByQuery(query, db);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+router.get('/buscar', rateLimiter, async (req, res) => {
+  // ...implementación similar...
 });
 
-// Iniciar servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor ejecutándose en puerto ${PORT}`);
+// Ruta administrativa protegida por firma
+router.post('/admin/recargar-modelos', verifySignature, async (req, res) => {
+  // ...implementación con verificación de seguridad...
 });
 ```
 
-## Uso en Frontend
+## Optimización y seguridad
 
-Ejemplo de cómo usar las API desde el frontend:
+Se han implementado varias características para optimización y seguridad:
 
+### Sistema de caché
+- Límite de tiempo (TTL) de 24 horas
+- Límite de tamaño máximo (500 entradas)
+- Limpieza automática de entradas antiguas
+- Actualización de timestamp para entradas usadas frecuentemente
+
+### Limitación de velocidad (rate limiting)
 ```javascript
-// Ejemplo de uso desde el cliente
-async function validatePlantDescription(description) {
-  const response = await fetch('/api/validate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: description })
-  });
-  
-  const result = await response.json();
-  
-  if (result.isValid) {
-    console.log(`✅ Texto válido (confianza: ${result.confidence.toFixed(2)})`);
-  } else {
-    console.log(`❌ Texto inválido o inapropiado`);
-  }
-  
-  return result;
-}
+const rateLimit = require("express-rate-limit");
 
-async function searchPlantsByQuery(query) {
-  const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
-  const result = await response.json();
-  
-  if (result.success) {
-    console.log(`Categoría interpretada: ${result.interpretedCategory}`);
-    console.log(`Resultados encontrados: ${result.results.length}`);
-    
-    // Mostrar resultados
-    result.results.forEach(poha => {
-      console.log(`- ID: ${poha.idpoha}, Preparado: ${poha.preparado.substring(0, 50)}...`);
-    });
-  } else {
-    console.log(`Error en búsqueda: ${result.error}`);
-  }
-  
-  return result;
-}
-```
-
-## Optimización y consideraciones
-
-### 1. Manejo de versiones
-Mantén un control de versiones para tus modelos. El código usa la constante `VERSION` para cargar archivos específicos.
-
-### 2. Preprocesamiento de texto
-La implementación actual incluye preprocesamiento mínimo. Para mayor precisión, considera implementar:
-- Eliminación de stopwords
-- Lematización
-- Normalización de acentos
-
-### 3. Almacenamiento en caché
-Implementa almacenamiento en caché para consultas frecuentes:
-
-```javascript
-// Cache simple para resultados de búsqueda
-const searchCache = new Map();
-
-// Modificar searchPohaByQuery para usar caché
-async function searchPohaByQuery(query, dbConnection) {
-  // Normalizar consulta para clave de caché
-  const cacheKey = query.trim().toLowerCase();
-  
-  // Verificar caché
-  if (searchCache.has(cacheKey)) {
-    console.log('Resultado obtenido de caché');
-    return searchCache.get(cacheKey);
-  }
-  
-  // Resto del código de búsqueda...
-  
-  // Almacenar en caché antes de devolver
-  searchCache.set(cacheKey, result);
-  return result;
-}
-```
-
-### 4. Seguridad
-- Valida y sanea las entradas de usuario para prevenir inyecciones SQL
-- Implementa límites de frecuencia (rate limiting) en las API
-- Considera usar consultas parametrizadas para prevenir SQL injection:
-
-```javascript
-// Ejemplo de consulta parametrizada segura
-const sql = `
-  SELECT idpoha, preparado, recomendacion
-  FROM vwpoha
-  WHERE 
-    dolencias LIKE CONCAT('%', ?, '%') OR
-    plantas_nombres LIKE CONCAT('%', ?, '%') OR
-    plantas_cientificos LIKE CONCAT('%', ?, '%') OR
-    preparado LIKE CONCAT('%', ?, '%') OR
-    recomendacion LIKE CONCAT('%', ?, '%')
-  LIMIT 50
-`;
-
-const params = Array(5).fill(category);
-```
-
-### 5. Manejo de errores
-Mejora el manejo de errores implementando registro detallado y códigos HTTP apropiados.
-
-### 6. Actualización de modelos
-Crea un proceso para actualizar los modelos en producción:
-
-```javascript
-app.post('/api/admin/reload-models', async (req, res) => {
-  // Verificar autenticación (simplificado)
-  if (req.headers['api-key'] !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ success: false, error: 'No autorizado' });
-  }
-  
-  try {
-    const initialized = await validators.initModels();
-    res.json({ success: initialized });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+const rateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // límite por IP
+  message: { success: false, error: "Demasiadas solicitudes, intente más tarde" }
 });
+```
+
+### Sistema de firma para endpoints administrativos
+```javascript
+function generateSignature(apiKey, apiSecret, path, body, timestamp) {
+  const data = JSON.stringify({ path, body, timestamp });
+  const hmac = crypto.createHmac('sha256', apiSecret);
+  hmac.update(data);
+  return hmac.digest('hex');
+}
+
+function verifySignature(req, apiSecret) {
+  const apiKey = req.header('X-API-Key');
+  const timestamp = req.header('X-Timestamp');
+  const signature = req.header('X-Signature');
+  // ...verificación...
+}
+```
+
+### Manejo de errores y simulación
+- Sistema de fallback para todos los componentes
+- Registro detallado de errores
+- Simulación inteligente cuando los modelos fallan
+
+## Pruebas
+
+Se han implementado pruebas exhaustivas para verificar todos los componentes:
+
+```javascript
+// Test de inicialización
+async function testInit() {
+  const initialized = await validators.initModels();
+  console.log('Inicialización:', initialized ? 'Exitosa' : 'Fallida');
+}
+
+// Test de validación
+async function testValidate() {
+  const texto = "El cedrón es una planta medicinal para problemas digestivos";
+  const result = await validators.validateText(texto);
+  console.log('Resultado de validación:', result);
+}
+
+// Test de interpretación
+async function testInterpretation() {
+  const consulta = "Tengo dolor de cabeza";
+  const result = await validators.interpretQuery(consulta);
+  console.log('Interpretación:', result);
+}
+
+// Test de búsqueda
+async function testSearch() {
+  const consulta = "Necesito algo para la fiebre";
+  const result = await validators.searchPohaByQuery(consulta, mockDatabase);
+  console.log('Búsqueda:', result);
+}
+```
+
+Para ejecutar las pruebas:
+```bash
+node tests/index.js --test=full
 ```
 
 ---
 
-Esta guía proporciona los pasos básicos para implementar la validación de texto y el filtro de búsqueda en un backend Node.js. Adapta el código según las necesidades específicas de tu proyecto y arquitectura.
+Esta guía representa la implementación actual en el sistema POHAPP. Los componentes están diseñados para ser robustos con sistemas de fallback, optimización y seguridad integrados.
