@@ -1,29 +1,28 @@
 version: '3.8'
 
 services:
-  # Base de datos MySQL
   db-pohapp:
-    image: mysql:latest
+    image: mysql:8.0
     restart: always
     container_name: pohapp-db-container
     hostname: pohapp-host
     environment:
-      MYSQL_HOST: localhost
       MYSQL_ROOT_PASSWORD: pohapp2024
       MYSQL_DATABASE: db-pohapp
     ports:
       - "3308:3306"
     volumes:
+      - mysql_data:/var/lib/mysql
       - ./dbpohapp.sql:/docker-entrypoint-initdb.d/dbpohapp.sql
+    networks:
+      - pohapp-net
 
-  # Backend
   pohapp-back:
     build:
       context: ../
       dockerfile: Dockerfile
     depends_on:
       - db-pohapp
-    image: pohapp-back-image
     ports:
       - "3000:3000"
     environment:
@@ -33,3 +32,11 @@ services:
       DB_PORT: 3306
       DB_NAME: db-pohapp
     container_name: pohapp-back-container
+    networks:
+      - pohapp-net
+
+volumes:
+  mysql_data:
+
+networks:
+  pohapp-net:
