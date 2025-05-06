@@ -146,4 +146,41 @@ ruta.post('/admin/recargar-modelos', async (req, res) => {
   }
 });
 
+// Ruta para verificar el estado de la API de IA
+ruta.get('/estado', (req, res) => {
+  try {
+    // Verificamos el estado de los modelos de IA
+    const modelosDisponibles = {
+      validationModel: !!validators.validationSession,
+      validationVectorizer: !!validators.validationVectorizer,
+      interpreterModel: !!validators.interpreterSession,
+      interpreterVectorizer: !!validators.interpreterVectorizer,
+      interpreterCategories: !!validators.interpreterCategories
+    };
+    
+    // Calculamos el porcentaje de componentes disponibles
+    const totalComponentes = Object.keys(modelosDisponibles).length;
+    const componentesDisponibles = Object.values(modelosDisponibles).filter(Boolean).length;
+    const porcentajeDisponible = (componentesDisponibles / totalComponentes) * 100;
+    
+    res.json({
+      success: true,
+      status: 'online',
+      version: validators.VERSION || 'v20250504',
+      modelosDisponibles,
+      salud: {
+        porcentajeDisponible,
+        estado: porcentajeDisponible > 80 ? 'ÓPTIMO' : (porcentajeDisponible > 40 ? 'PARCIAL' : 'CRÍTICO')
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      status: 'error',
+      error: error.message 
+    });
+  }
+});
+
 module.exports = ruta;

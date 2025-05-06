@@ -5,7 +5,7 @@ const modelConfig = require('./model_config'); // Configuración básica como fa
 
 // Configuración de rutas y versión
 const MODELS_DIR = path.join(__dirname, '../../ONNX');
-const VERSION = 'v20250504'; // Usa la versión actual de tus modelos
+const VERSION = process.env.MODEL_VERSION || 'v20250504'; // Usa la versión actual de tus modelos
 
 // Variables para almacenar las sesiones y vectorizadores
 let validationSession;
@@ -438,10 +438,19 @@ async function searchPohaByQuery(query, database) {
   }
 }
 
-// Exportar todas las funciones
+// Exportar todas las funciones y algunas variables para monitoreo
 module.exports = {
+  // Funciones principales
   initModels,
   validateText,
   interpretQuery,
-  searchPohaByQuery
+  searchPohaByQuery,
+  
+  // Variables para monitoreo del estado
+  VERSION,
+  get validationSession() { return validationSession; },
+  get validationVectorizer() { return validationVectorizer; },
+  get interpreterSession() { return interpreterSession; },
+  get interpreterVectorizer() { return interpreterVectorizer; },
+  get interpreterCategories() { return interpreterCategories; }
 };

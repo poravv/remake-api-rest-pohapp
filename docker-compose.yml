@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  # Servicio de base de datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: pohapp-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: pohapp
+      MYSQL_DATABASE: db-pohapp
+      MYSQL_USER: pohapp-user
+      MYSQL_PASSWORD: pohapp-password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/dbpohapp.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./docker/create_view_medicina.sql:/docker-entrypoint-initdb.d/02_views.sql
+    networks:
+      - pohapp-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # API REST con Node.js y ONNX
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pohapp-api
+    environment:
+      - PORT=3000
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=pohapp-user
+      - DB_PASSWORD=pohapp-password
+      - DB_DATABASE=db-pohapp
+      - POHAPP_API_SECRET=poha_secret_key2025
+      - POHAPP_ADMIN_KEY=poha_admin_2025
+      - MODEL_VERSION=v20250504
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pohapp-network
+    volumes:
+      - ./ONNX:/app/ONNX
+    restart: unless-stopped
+
+networks:
+  pohapp-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
