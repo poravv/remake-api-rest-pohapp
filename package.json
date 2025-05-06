@@ -6,6 +6,7 @@
     "mysql": "^2.18.1",
     "mysql2": "^2.3.3",
     "nodemon": "^2.0.19",
+    "onnxruntime-node": "^1.21.1",
     "sequelize": "^6.21.3"
   },
   "name": "api-rest-pohaap",
@@ -13,7 +14,8 @@
   "description": "Api rest para comunicar poha ñanApp",
   "main": "./src/server.js",
   "scripts": {
-    "start": "nodemon server"
+    "start": "nodemon server",
+    "test:models": "node test_models.js"
   },
   "author": "Andres Vera",
   "license": "ISC"

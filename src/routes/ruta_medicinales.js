@@ -2,6 +2,7 @@ const express = require('express')
 const ruta = express.Router();
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
+const validators = require('../utils/validators');
 
 ruta.get('/get/', async (req, res) => {
     try {
@@ -89,6 +90,21 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
 
 })
 
+ruta.get('/busqueda-natural/:consulta', async (req, res) => {
+    try {
+        if (!req.params.consulta) {
+            return res.status(400).json({ success: false, error: 'Se requiere una consulta para buscar' });
+        }
+
+        // Utilizamos el validador para interpretar y buscar usando el modelo IA
+        const result = await validators.searchPohaByQuery(req.params.consulta, database);
+        res.json(result);
+    } catch (error) {
+        console.error(error); 
+        console.log(`Algo salió mal ${error}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+})
 
 
 module.exports = ruta;

@@ -9,6 +9,7 @@ const puntos = require('./routes/ruta_puntos');
 const dp = require('./routes/ruta_dolencias_poha');
 const pp = require('./routes/ruta_poha_planta');
 const medicinales = require('./routes/ruta_medicinales');
+const ia = require('./routes/ruta_ia');
 
 
 try {
@@ -21,6 +22,7 @@ try {
     routes.use('/api/pohapp/dp',dp)
     routes.use('/api/pohapp/pp',pp)
     routes.use('/api/pohapp/medicinales',medicinales)
+    routes.use('/api/pohapp/ia',ia)
 } catch (error) {
     console.log(`Algo salió mal ${error}`);
     //res.json({state:"error",message:"ruta incorrecta"});
