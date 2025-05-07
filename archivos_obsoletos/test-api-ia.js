@@ -7,6 +7,11 @@ const cors = require('cors');
 const validators = require('./src/utils/validators');
 require('dotenv').config();
 
+// Arreglo para serialización de BigInt
+BigInt.prototype.toJSON = function() {
+  return this.toString();
+};
+
 // Configurar Express
 const app = express();
 const PORT = process.env.PORT || 3000;

@@ -2,18 +2,24 @@
  * Configuración básica para los modelos sin depender de joblib
  */
 
-// Definir clases básicas de los vectorizadores
+// Definir clases básicas de los vectorizadores basadas en el modelo real
+// Estas categorías fueron extraídas del archivo interpreter_categories_v20250504.joblib
 const interpreterCategories = [
-  "dolores",
-  "gripe",
-  "digestión",
-  "piel",
+  "text",
   "fiebre",
-  "tos",
-  "garganta",
-  "dolor de cabeza",
+  "vómito",
+  "catarro",
+  "náuseas",
+  "ansiedad",
   "insomnio",
-  "respiratorio"
+  "relajante",
+  "mal aliento",
+  "desinflamante",
+  "estreñimiento",
+  "tos irritativa",
+  "dolor de garganta",
+  "dolores articulares",
+  "dolores menstruales"
 ];
 
 // Función para crear un simulador de vectorizador

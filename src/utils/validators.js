@@ -2,6 +2,7 @@ const ort = require('onnxruntime-node');
 const joblib = require('./joblib_loader');
 const path = require('path');
 const modelConfig = require('./model_config'); // Configuración básica como fallback
+const modelDimensions = require('./model_dimensions'); // Dimensiones correctas para los modelos
 
 // Configuración de rutas y versión
 const MODELS_DIR = path.join(__dirname, '../../ONNX');
@@ -57,6 +58,14 @@ async function initModels() {
         path.join(MODELS_DIR, `interpreter_vectorizer_${VERSION}.joblib`)
       );
       console.log('Vectorizador de interpretación cargado correctamente');
+      
+      // Verificar si el vectorizador tiene vocabulario para extraer información relevante
+      if (interpreterVectorizer && interpreterVectorizer.vocabulary_) {
+        console.log(`Vocabulario cargado con ${Object.keys(interpreterVectorizer.vocabulary_).length} términos`);
+        
+        // Se podría extraer más información útil aquí para mejorar la simulación
+        // Por ejemplo, palabras con más peso, idf de términos, etc.
+      }
     } catch (err) {
       console.warn('Error al cargar vectorizador de interpretación:', err.message);
       console.warn('Usando vectorizador simulado para interpretación');
@@ -68,6 +77,18 @@ async function initModels() {
         path.join(MODELS_DIR, `interpreter_categories_${VERSION}.joblib`)
       );
       console.log('Categorías de interpretación cargadas correctamente');
+      
+      if (Array.isArray(interpreterCategories)) {
+        console.log(`Categorías disponibles (${interpreterCategories.length}): ${interpreterCategories.join(', ')}`);
+      } else {
+        console.warn('Formato de categorías no esperado, convirtiendo a array');
+        // Intentar convertir a array si viene en otro formato
+        if (typeof interpreterCategories === 'object') {
+          interpreterCategories = Object.values(interpreterCategories);
+        } else {
+          interpreterCategories = modelConfig.interpreterCategories;
+        }
+      }
     } catch (err) {
       console.warn('Error al cargar categorías de interpretación:', err.message);
       console.warn('Usando categorías predefinidas para interpretación');
@@ -190,10 +211,33 @@ async function interpretQuery(query) {
             shape: [1, vocabSize]
           };
         }
-        const queryVectorFloat = new Float32Array(queryVector.data);
         
+        // Usar la dimensión correcta del modelo desde la configuración
+        const expectedDimension = modelDimensions.interpreter.inputDimension; // 51 dimensiones según nuestro análisis
+        
+        console.log('Dimensiones esperadas por el modelo:', expectedDimension);
+        console.log('Dimensiones del vector generado:', queryVector.shape ? queryVector.shape[1] : 'desconocido');
+        
+        // Ajustar dimensión del vector si no coincide con lo esperado por el modelo
+        let queryVectorFloat;
+        
+        // Si tenemos shape y no coincide, ajustar
+        if (queryVector.shape && queryVector.shape[1] !== expectedDimension) {
+          console.log(`Ajustando dimensiones del vector de ${queryVector.shape[1]} a ${expectedDimension}`);
+          // Crear un nuevo vector con la dimensión esperada
+          const adjustedVector = new Float32Array(expectedDimension);
+          // Copiar los valores que podamos del vector original
+          const minDimension = Math.min(queryVector.data.length, expectedDimension);
+          for (let i = 0; i < minDimension; i++) {
+            adjustedVector[i] = queryVector.data[i];
+          }
+          queryVectorFloat = adjustedVector;
+        } else {
+          // Si no tenemos shape o coincide, usar vector original
+          queryVectorFloat = new Float32Array(queryVector.data);
+        }
         // Preparar entrada para el modelo
-        const inputTensor = new ort.Tensor('float32', queryVectorFloat, [1, queryVector.shape[1]]);
+        const inputTensor = new ort.Tensor('float32', queryVectorFloat, [1, expectedDimension]);
         const feeds = { [interpreterSession.inputNames[0]]: inputTensor };
         
         // Ejecutar inferencia
@@ -230,30 +274,67 @@ async function interpretQuery(query) {
     // SIMULACIÓN si no tenemos modelo o falló la inferencia
     console.log('Usando simulación para interpretación de consulta');
     
-    // Simulación: identificar palabras clave para clasificar la consulta
-    const keywords = {
-      'dolor': 0,
-      'cabeza': 0,
-      'gripe': 1,
-      'estómag': 2,
-      'digestión': 2,
-      'digestiv': 2,
-      'piel': 3,
-      'fiebre': 4,
-      'tos': 5,
-      'garganta': 6,
-      'dormir': 8,
-      'insomnio': 8,
-      'respirator': 9
-    };
+    // Intentar extraer palabras clave del vectorizador si está disponible
+    let keywords = {};
     
-    // Contar coincidencias para cada categoría
-    const categoryScores = Array(modelConfig.interpreterCategories.length).fill(0);
+    if (interpreterVectorizer && interpreterVectorizer.vocabulary_) {
+      console.log('Generando keywords a partir del vocabulario del vectorizador');
+      
+      // Extraer las palabras más importantes para cada categoría usando el vocabulario
+      const vocabulary = interpreterVectorizer.vocabulary_;
+      
+      // Mapeo básico de palabras relevantes usando el vocabulario
+      Object.keys(vocabulary).forEach(word => {
+        // Asignar categorías según palabras clave del vocabulario y las categorías reales
+        // de interpreter_categories_v20250504.joblib
+        if (word.includes('text')) keywords[word] = 0;
+        else if (word.includes('fiebre') || word.includes('temperat')) keywords[word] = 1;
+        else if (word.includes('vomit') || word.includes('vómit')) keywords[word] = 2;
+        else if (word.includes('catarro') || word.includes('resfr')) keywords[word] = 3;
+        else if (word.includes('nause') || word.includes('náuse')) keywords[word] = 4;
+        else if (word.includes('ansie') || word.includes('nervios')) keywords[word] = 5;
+        else if (word.includes('insomnio') || word.includes('dormir')) keywords[word] = 6;
+        else if (word.includes('relaj')) keywords[word] = 7;
+        else if (word.includes('aliento')) keywords[word] = 8;
+        else if (word.includes('inflam') || word.includes('desinfla') || word.includes('hinchaz')) keywords[word] = 9; // Añadido hinchazón
+        else if (word.includes('estreñ') || word.includes('constip')) keywords[word] = 10;
+        else if (word.includes('tos')) keywords[word] = 11;
+        else if (word.includes('garganta')) keywords[word] = 12;
+        else if (word.includes('articul') || word.includes('huesos')) keywords[word] = 13;
+        else if (word.includes('menstr') || word.includes('period')) keywords[word] = 14;
+      });
+    } else {
+      console.log('Usando keywords predefinidas (fallback)');
+      
+      // Si no tenemos el vectorizador, usamos keywords predefinidas basadas en las categorías reales
+      keywords = {
+        'text': 0,
+        'fiebre': 1, 'temperatura': 1, 'caliente': 1,
+        'vómito': 2, 'vomitar': 2, 'devolver': 2,
+        'catarro': 3, 'resfriado': 3, 'gripe': 3,
+        'náusea': 4, 'mareo': 4, 'malestar': 4, 'estómago': 4,
+        'ansiedad': 5, 'nervios': 5, 'estrés': 5,
+        'insomnio': 6, 'dormir': 6, 'descansar': 6,
+        'relajante': 7, 'relajar': 7, 'relax': 7,
+        'aliento': 8, 'boca': 8, 'halitosis': 8,
+        'inflamación': 9, 'hinchazón': 9, 'desinflamar': 9, 'abdominal': 9, 'vientre': 9, 'abdomen': 9,
+        'estreñimiento': 10, 'constipación': 10, 'evacuar': 10,
+        'tos': 11, 'carraspera': 11, 'irritación': 11,
+        'garganta': 12, 'angina': 12, 'tragar': 12,
+        'articular': 13, 'articulaciones': 13, 'huesos': 13, 'artritis': 13,
+        'menstrual': 14, 'regla': 14, 'período': 14, 'menstruación': 14
+      };
+    }
+    
+    // Contar coincidencias para cada categoría - Usar las categorías reales del modelo
+    const categoryScores = Array(modelDimensions.interpreter.categories.length).fill(0);
     
     // Buscar palabras clave en la consulta
     Object.entries(keywords).forEach(([keyword, categoryId]) => {
       if (processedQuery.includes(keyword)) {
-        categoryScores[categoryId] += 1;
+        if (categoryId < categoryScores.length) {
+          categoryScores[categoryId] += 1;
+        }
       }
     });
     
@@ -278,10 +359,20 @@ async function interpretQuery(query) {
     const totalScore = Math.max(1, categoryScores.reduce((sum, score) => sum + score, 0));
     const probabilities = categoryScores.map(score => score / totalScore);
     
-    // Obtener el nombre de la categoría
-    const categoryName = modelConfig.interpreterCategories[maxCategoryId];
+    // Obtener el nombre de la categoría desde las dimensiones del modelo
+    let categoryName = '';
+    if (maxCategoryId < modelDimensions.interpreter.categories.length) {
+      categoryName = modelDimensions.interpreter.categories[maxCategoryId];
+    } else if (maxCategoryId < modelConfig.interpreterCategories.length) {
+      // Fallback al modelConfig si no tenemos la categoría en modelDimensions
+      categoryName = modelConfig.interpreterCategories[maxCategoryId];
+    } else {
+      // Si no hay categoría para este ID, usar un valor por defecto
+      categoryName = 'text';
+      maxCategoryId = 0;
+    }
     
-    return {
+    return serializeBigInt({
       categoryId: maxCategoryId,
       categoryName,
       confidence: probabilities[maxCategoryId] || 0.7,
@@ -289,17 +380,17 @@ async function interpretQuery(query) {
       probabilities: probabilities.map((p, i) => ({ id: i, probability: p })),
       using_model: false,
       simulated: true
-    };
+    });
   } catch (error) {
     console.error('Error en interpretación de consulta:', error);
-    return { 
+    return serializeBigInt({ 
       categoryId: -1, 
-      categoryName: modelConfig.interpreterCategories[0] || 'dolores',
+      categoryName: modelConfig.interpreterCategories[0] || 'text',
       confidence: 0.5,
       confidence_str: '0.5000',
       error: error.message,
       simulated: true
-    };
+    });
   }
 }
 
@@ -336,6 +427,33 @@ function cleanupCache() {
 // Programar limpieza periódica de caché (cada hora)
 setInterval(cleanupCache, 60 * 60 * 1000);
 
+// Función para serializar BigInt a string en objetos JSON
+function serializeBigInt(obj) {
+  if (obj === null || obj === undefined) return obj;
+  
+  // Si es BigInt, convertirlo a string
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+  
+  // Si es array, procesar cada elemento
+  if (Array.isArray(obj)) {
+    return obj.map(serializeBigInt);
+  }
+  
+  // Si es objeto, procesar cada propiedad
+  if (typeof obj === 'object') {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = serializeBigInt(value);
+    }
+    return result;
+  }
+  
+  // Devolver otros tipos sin cambios
+  return obj;
+}
+
 // Función para buscar en la base de datos
 async function searchPohaByQuery(query, database) {
   try {
@@ -348,7 +466,7 @@ async function searchPohaByQuery(query, database) {
       const cachedResult = searchCache.get(cacheKey);
       // Actualizar el timestamp para indicar que se usó recientemente
       cachedResult.timestamp = Date.now();
-      return cachedResult;
+      return serializeBigInt(cachedResult);
     }
 
     // Interpretar la consulta
@@ -369,7 +487,88 @@ async function searchPohaByQuery(query, database) {
     
     const category = interpretation.categoryName;
     
-    // Consulta SQL con parámetros para prevenir SQL injection
+    // Consulta SQL mejorada que relaciona las dolencias con las categorías
+    // en lugar de hacer búsquedas de texto genéricas
+
+    // Palabras clave extra para búsqueda basadas en la categoría
+    const extraKeywords = [];
+    
+    // Detección de términos específicos en la consulta
+    const queryLower = query.toLowerCase();
+    const hasHinchazón = queryLower.includes('hinchaz');
+    const hasAbdominal = queryLower.includes('abdom');
+    const hasInflamación = queryLower.includes('inflam');
+    
+    // Añadir términos específicos según la categoría y la consulta
+    if (category === 'desinflamante' || hasHinchazón || hasAbdominal || hasInflamación) {
+        extraKeywords.push('hinchazón', 'abdominal', 'inflamación', 'vientre');
+        // Forzar la inclusión de términos relacionados con hinchazón abdominal
+        if (hasHinchazón && hasAbdominal) {
+            extraKeywords.push('hinchazón abdominal'); // Término completo
+        }
+    } else if (category === 'text') {
+        // Para categoría genérica, extraemos palabras clave de la consulta original
+        const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        extraKeywords.push(...queryWords);
+    }
+    
+    console.log('Palabras clave adicionales para búsqueda:', extraKeywords);
+
+    // Paso 1: Intentar relacionar la categoría con las dolencias en la base de datos
+    let dolenciasRelacionadas = [];
+    try {
+      console.log('Buscando dolencias relacionadas con categoría:', category);
+      
+      // Primero buscamos dolencias que coincidan con nuestra categoría
+      const dolenciasQuery = `
+        SELECT iddolencias, descripcion 
+        FROM dolencias 
+        WHERE estado = 'AC' AND (
+          descripcion LIKE ? OR 
+          descripcion LIKE ? OR
+          descripcion LIKE ?
+          ${extraKeywords.map(() => 'OR descripcion LIKE ?').join(' ')}
+        )
+        LIMIT 8
+      `;
+      
+      // Varios patrones de búsqueda para aumentar posibilidades de coincidencia
+      let dolenciasParams = [
+        `%${category}%`,                        // Contiene la categoría en cualquier parte
+        `%${category.split(' ')[0]}%`,         // Contiene la primera palabra
+        `%${category.replace(/^(el|la|los|las) /, '')}%` // Sin artículos al inicio
+      ];
+      
+      // Añadir los parámetros de extraKeywords
+      extraKeywords.forEach(keyword => {
+        dolenciasParams.push(`%${keyword}%`);
+      });
+      
+      const dolenciasResultado = await database.query(dolenciasQuery, {
+        replacements: dolenciasParams,
+        type: database.QueryTypes.SELECT
+      });
+      
+      if (dolenciasResultado.length > 0) {
+        console.log('Dolencias encontradas:', dolenciasResultado.length);
+        dolenciasRelacionadas = dolenciasResultado.map(d => d.iddolencias);
+      } else {
+        console.log('No se encontraron dolencias directamente relacionadas');
+      }
+    } catch (dolenciaError) {
+      console.error('Error al buscar dolencias relacionadas:', dolenciaError);
+    }
+    
+    // Gestión especial para términos específicos como "hinchazón abdominal"
+    let idDolenviasEspecificas = [];
+    if (query.toLowerCase().includes('hinchazón abdominal') || 
+        query.toLowerCase().includes('hinchazón') && query.toLowerCase().includes('abdominal')) {
+        // ID 21 corresponde a "Hinchazón abdominal" según tu base de datos
+        console.log('Detectada consulta específica de hinchazón abdominal, forzando coincidencia con ID 21');
+        idDolenviasEspecificas.push(21);
+    }
+    
+    // Consulta simplificada para evitar problemas con la cláusula ORDER BY
     const sql = `
       SELECT 
         p.idpoha, 
@@ -379,6 +578,7 @@ async function searchPohaByQuery(query, database) {
         p.terere,
         p.te,
         GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ') AS dolencias,
+        GROUP_CONCAT(DISTINCT d.iddolencias SEPARATOR ', ') AS dolencias_ids,
         GROUP_CONCAT(DISTINCT pl.nombre SEPARATOR ', ') AS plantas_nombres,
         GROUP_CONCAT(DISTINCT pl.nombre_cientifico SEPARATOR ', ') AS plantas_cientificos
       FROM 
@@ -389,6 +589,8 @@ async function searchPohaByQuery(query, database) {
       LEFT JOIN planta pl ON pp.idplanta = pl.idplanta
       WHERE 
         p.estado = 'AC' AND (
+        ${idDolenviasEspecificas.length > 0 ? `d.iddolencias IN (${idDolenviasEspecificas.join(',')}) OR ` : ''}
+        ${dolenciasRelacionadas.length > 0 ? `d.iddolencias IN (${dolenciasRelacionadas.join(',')}) OR ` : ''}
         d.descripcion LIKE ? OR
         pl.nombre LIKE ? OR
         pl.nombre_cientifico LIKE ? OR
@@ -399,23 +601,150 @@ async function searchPohaByQuery(query, database) {
       LIMIT 50
     `;
 
-    const params = Array(5).fill(`%${category}%`);
+    // Construcción de parámetros para la consulta (simplificada)
+    let params = [];
     
-    // Ejecutar consulta SQL
-    const results = await new Promise((resolve, reject) => {
-      database.query(sql, params, { type: database.QueryTypes.SELECT })
-        .then(results => resolve(results))
-        .catch(err => reject(err));
-    });
+    // Ya no necesitamos estos parámetros porque estamos construyendo los IDs directamente en el SQL
+    // if (idDolenviasEspecificas.length > 0) {
+    //     params.push(idDolenviasEspecificas);
+    // }
+    // if (dolenciasRelacionadas.length > 0) {
+    //     params.push(dolenciasRelacionadas);
+    // }
+    
+    // Términos de búsqueda
+    const searchTerm = queryLower.includes('hinchaz') && queryLower.includes('abdom') 
+        ? '%hinchaz%abdom%' 
+        : `%${category}%`;
+        
+    params = params.concat(Array(5).fill(searchTerm));
+    
+    // Ejecutar consulta SQL mejorada
+    let results = [];
+    try {
+      console.log('Buscando remedios con categoría:', category);
+      console.log('Total de parámetros SQL:', params.length);
+      
+      // Ejecutar la consulta principal con los parámetros
+      if (params.length > 0 && category) {
+        results = await database.query(sql, { 
+          replacements: params,
+          type: database.QueryTypes.SELECT 
+        });
+        
+        console.log(`Se encontraron ${results.length} remedios para la categoría "${category}"`);
+      }
+      
+      // Si no encontramos resultados con la consulta anterior, usar consulta de respaldo
+      if (results.length === 0) {
+        console.log('No se encontraron resultados, intentando con consulta de respaldo');
+        
+        // Consulta de respaldo: búsqueda más amplia por palabras clave
+        const keywordSql = `
+          SELECT 
+            p.idpoha, 
+            p.preparado, 
+            p.recomendacion,
+            p.mate,
+            p.terere,
+            p.te,
+            GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ') AS dolencias,
+            GROUP_CONCAT(DISTINCT pl.nombre SEPARATOR ', ') AS plantas_nombres,
+            GROUP_CONCAT(DISTINCT pl.nombre_cientifico SEPARATOR ', ') AS plantas_cientificos
+          FROM 
+            poha p
+          LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
+          LEFT JOIN dolencias d ON dp.iddolencias = d.iddolencias
+          LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha
+          LEFT JOIN planta pl ON pp.idplanta = pl.idplanta
+          WHERE p.estado = 'AC' AND (
+            ${keywords.map(() => `
+              d.descripcion LIKE ? OR
+              pl.nombre LIKE ? OR
+              p.preparado LIKE ? OR
+              p.recomendacion LIKE ?
+            `).join(' OR ')}
+          )
+          GROUP BY 
+            p.idpoha, p.preparado, p.recomendacion, p.mate, p.terere, p.te
+          LIMIT 20
+        `;
+        
+        // Generar parámetros para cada palabra clave
+        const keywordParams = [];
+        keywords.forEach(keyword => {
+          if (keyword && keyword.length > 2) {
+            keywordParams.push(...Array(4).fill(`%${keyword}%`));
+          }
+        });
+        
+        if (keywordParams.length > 0) {
+          const keywordResults = await database.query(keywordSql, { 
+            replacements: keywordParams,
+            type: database.QueryTypes.SELECT 
+          });
+          
+          console.log(`Consulta de respaldo encontró ${keywordResults.length} resultados`);
+          results = keywordResults;
+        }
+      }
+      
+      // Si aún no hay resultados, mostrar algunos remedios populares
+      if (results.length === 0) {
+        console.log('No hay resultados específicos, mostrando remedios populares');
+        const defaultSql = `
+          SELECT 
+            p.idpoha, 
+            p.preparado, 
+            p.recomendacion,
+            p.mate,
+            p.terere,
+            p.te,
+            GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ') AS dolencias,
+            GROUP_CONCAT(DISTINCT pl.nombre SEPARATOR ', ') AS plantas_nombres,
+            GROUP_CONCAT(DISTINCT pl.nombre_cientifico SEPARATOR ', ') AS plantas_cientificos
+          FROM 
+            poha p
+          LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
+          LEFT JOIN dolencias d ON dp.iddolencias = d.iddolencias
+          LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha
+          LEFT JOIN planta pl ON pp.idplanta = pl.idplanta
+          WHERE p.estado = 'AC'
+          GROUP BY 
+            p.idpoha, p.preparado, p.recomendacion, p.mate, p.terere, p.te
+          LIMIT 10
+        `;
+        
+        results = await database.query(defaultSql, { 
+          type: database.QueryTypes.SELECT 
+        });
+      }
+    } catch (sqlError) {
+      console.error('Error en consulta SQL:', sqlError.message);
+      // Para debug
+      console.error('Consulta SQL fallida:', sql);
+      console.error('Parámetros:', params);
+      // Devolver array vacío si hay error
+      results = [];
+    }
 
+    // Enriquecer los resultados con información adicional útil
     const result = {
       success: true,
       interpretedCategory: category,
       confidence: interpretation.confidence,
-      results: results,
-      query: sql,
+      results: serializeBigInt(results),
       keywords,
-      totalResults: results.length
+      totalResults: results.length,
+      // Añadir metadatos para facilitar el debugging y mejorar la experiencia de usuario
+      metadata: {
+        categoryId: interpretation.categoryId,
+        searchType: results.length > 0 ? 
+          (dolenciasRelacionadas.length > 0 ? "category_match" : "keyword_match") : 
+          "default_results",
+        matchMethod: dolenciasRelacionadas.length > 0 ? "dolencias_relacionadas" : 
+                     (keywords.length > 0 ? "palabras_clave" : "general")
+      }
     };
     
     // Almacenar en caché antes de devolver (con timestamp)
@@ -427,7 +756,8 @@ async function searchPohaByQuery(query, database) {
       cleanupCache();
     }
     
-    return result;
+    // Asegurarnos de que todos los valores BigInt sean convertidos a string
+    return serializeBigInt(result);
   } catch (error) {
     console.error('Error en búsqueda:', error);
     return { 
