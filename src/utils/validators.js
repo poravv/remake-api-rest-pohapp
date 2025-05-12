@@ -19,7 +19,7 @@ let interpreterCategories;
 async function initModels() {
   try {
     console.log('Inicializando modelos ONNX...');
-    
+
     // Cargar modelo de validación
     try {
       validationSession = await ort.InferenceSession.create(
@@ -30,7 +30,7 @@ async function initModels() {
       console.warn('Error al cargar modelo de validación ONNX:', err.message);
       console.warn('Usando simulación para validación');
     }
-    
+
     try {
       validationVectorizer = await joblib.load(
         path.join(MODELS_DIR, `validation_vectorizer_${VERSION}.joblib`)
@@ -41,7 +41,7 @@ async function initModels() {
       console.warn('Usando vectorizador simulado para validación');
       validationVectorizer = modelConfig.validationVectorizer;
     }
-    
+
     // Cargar modelo de interpretación
     try {
       interpreterSession = await ort.InferenceSession.create(
@@ -52,17 +52,17 @@ async function initModels() {
       console.warn('Error al cargar modelo de interpretación ONNX:', err.message);
       console.warn('Usando simulación para interpretación');
     }
-    
+
     try {
       interpreterVectorizer = await joblib.load(
         path.join(MODELS_DIR, `interpreter_vectorizer_${VERSION}.joblib`)
       );
       console.log('Vectorizador de interpretación cargado correctamente');
-      
+
       // Verificar si el vectorizador tiene vocabulario para extraer información relevante
       if (interpreterVectorizer && interpreterVectorizer.vocabulary_) {
         console.log(`Vocabulario cargado con ${Object.keys(interpreterVectorizer.vocabulary_).length} términos`);
-        
+
         // Se podría extraer más información útil aquí para mejorar la simulación
         // Por ejemplo, palabras con más peso, idf de términos, etc.
       }
@@ -71,13 +71,13 @@ async function initModels() {
       console.warn('Usando vectorizador simulado para interpretación');
       interpreterVectorizer = modelConfig.interpreterVectorizer;
     }
-    
+
     try {
       interpreterCategories = await joblib.load(
         path.join(MODELS_DIR, `interpreter_categories_${VERSION}.joblib`)
       );
       console.log('Categorías de interpretación cargadas correctamente');
-      
+
       if (Array.isArray(interpreterCategories)) {
         console.log(`Categorías disponibles (${interpreterCategories.length}): ${interpreterCategories.join(', ')}`);
       } else {
@@ -94,7 +94,7 @@ async function initModels() {
       console.warn('Usando categorías predefinidas para interpretación');
       interpreterCategories = modelConfig.interpreterCategories;
     }
-    
+
     console.log('Modelos inicializados (algunos pueden ser simulados)');
     return true;
   } catch (error) {
@@ -113,11 +113,11 @@ async function validateText(text) {
   try {
     // Preprocesar texto (simplificado)
     const processedText = text.toLowerCase();
-    
+
     // Si tenemos la sesión y el vectorizador, usamos el modelo real
     if (validationSession && validationVectorizer) {
       console.log('Usando modelo real para validación');
-      
+
       // Vectorizar texto (utilizando el vectorizador exportado)
       let textVector;
       if (typeof validationVectorizer.transform === 'function') {
@@ -131,24 +131,24 @@ async function validateText(text) {
         };
       }
       const textVectorFloat = new Float32Array(textVector.data);
-      
+
       try {
         // Preparar entrada para el modelo
         const inputTensor = new ort.Tensor('float32', textVectorFloat, [1, textVector.shape[1]]);
         const feeds = { [validationSession.inputNames[0]]: inputTensor };
-        
+
         // Ejecutar inferencia
         const results = await validationSession.run(feeds);
-        
+
         // Procesar resultados
         const outputLabel = results[validationSession.outputNames[0]];
         const outputProbs = results[validationSession.outputNames[1]];
-        
+
         const label = outputLabel.data[0];
         const probabilities = Array.from(outputProbs.data);
         const confidence = probabilities[label];
         const isValid = label === 1;
-        
+
         return {
           isValid,
           confidence,
@@ -161,14 +161,14 @@ async function validateText(text) {
         // Si falla la inferencia, caemos en la simulación
       }
     }
-    
+
     // SIMULACIÓN si no tenemos modelo o falló la inferencia
     console.log('Usando simulación para validación de texto');
-    
+
     // Lógica simple: textos con al menos 10 caracteres son válidos
     const isValid = processedText.length >= 10 && !processedText.includes('xxx');
     const confidence = isValid ? 0.85 : 0.15;
-    
+
     return {
       isValid,
       confidence,
@@ -179,10 +179,10 @@ async function validateText(text) {
     };
   } catch (error) {
     console.error('Error en validación de texto:', error);
-    return { 
-      isValid: false, 
-      confidence: 0, 
-      score: 0, 
+    return {
+      isValid: false,
+      confidence: 0,
+      score: 0,
       error: error.message,
       simulated: true
     };
@@ -194,7 +194,7 @@ async function interpretQuery(query) {
   try {
     // Preprocesar consulta (simplificado)
     const processedQuery = query.toLowerCase();
-    
+
     // Si tenemos la sesión y el vectorizador, usamos el modelo real
     if (interpreterSession && interpreterVectorizer && interpreterCategories) {
       console.log('Usando modelo real para interpretación');
@@ -211,16 +211,16 @@ async function interpretQuery(query) {
             shape: [1, vocabSize]
           };
         }
-        
+
         // Usar la dimensión correcta del modelo desde la configuración
         const expectedDimension = modelDimensions.interpreter.inputDimension; // 51 dimensiones según nuestro análisis
-        
+
         console.log('Dimensiones esperadas por el modelo:', expectedDimension);
         console.log('Dimensiones del vector generado:', queryVector.shape ? queryVector.shape[1] : 'desconocido');
-        
+
         // Ajustar dimensión del vector si no coincide con lo esperado por el modelo
         let queryVectorFloat;
-        
+
         // Si tenemos shape y no coincide, ajustar
         if (queryVector.shape && queryVector.shape[1] !== expectedDimension) {
           console.log(`Ajustando dimensiones del vector de ${queryVector.shape[1]} a ${expectedDimension}`);
@@ -239,24 +239,24 @@ async function interpretQuery(query) {
         // Preparar entrada para el modelo
         const inputTensor = new ort.Tensor('float32', queryVectorFloat, [1, expectedDimension]);
         const feeds = { [interpreterSession.inputNames[0]]: inputTensor };
-        
+
         // Ejecutar inferencia
         const results = await interpreterSession.run(feeds);
-        
+
         // Procesar resultados
         const outputLabel = results[interpreterSession.outputNames[0]];
         const outputProbs = results[interpreterSession.outputNames[1]];
-        
+
         const labelId = outputLabel.data[0];
         const probabilities = Array.from(outputProbs.data);
         const confidence = probabilities[labelId];
-        
+
         // Obtener nombre de categoría
         let categoryName = null;
         if (interpreterCategories && labelId < interpreterCategories.length) {
           categoryName = interpreterCategories[labelId];
         }
-        
+
         return {
           categoryId: labelId,
           categoryName,
@@ -270,19 +270,19 @@ async function interpretQuery(query) {
         // Si falla la inferencia, caemos en la simulación
       }
     }
-    
+
     // SIMULACIÓN si no tenemos modelo o falló la inferencia
     console.log('Usando simulación para interpretación de consulta');
-    
+
     // Intentar extraer palabras clave del vectorizador si está disponible
     let keywords = {};
-    
+
     if (interpreterVectorizer && interpreterVectorizer.vocabulary_) {
       console.log('Generando keywords a partir del vocabulario del vectorizador');
-      
+
       // Extraer las palabras más importantes para cada categoría usando el vocabulario
       const vocabulary = interpreterVectorizer.vocabulary_;
-      
+
       // Mapeo básico de palabras relevantes usando el vocabulario
       Object.keys(vocabulary).forEach(word => {
         // Asignar categorías según palabras clave del vocabulario y las categorías reales
@@ -305,7 +305,7 @@ async function interpretQuery(query) {
       });
     } else {
       console.log('Usando keywords predefinidas (fallback)');
-      
+
       // Si no tenemos el vectorizador, usamos keywords predefinidas basadas en las categorías reales
       keywords = {
         'text': 0,
@@ -325,10 +325,10 @@ async function interpretQuery(query) {
         'menstrual': 14, 'regla': 14, 'período': 14, 'menstruación': 14
       };
     }
-    
+
     // Contar coincidencias para cada categoría - Usar las categorías reales del modelo
     const categoryScores = Array(modelDimensions.interpreter.categories.length).fill(0);
-    
+
     // Buscar palabras clave en la consulta
     Object.entries(keywords).forEach(([keyword, categoryId]) => {
       if (processedQuery.includes(keyword)) {
@@ -337,28 +337,28 @@ async function interpretQuery(query) {
         }
       }
     });
-    
+
     // Encontrar la categoría con mayor puntaje
     let maxScore = 0;
     let maxCategoryId = 0;
-    
+
     categoryScores.forEach((score, id) => {
       if (score > maxScore) {
         maxScore = score;
         maxCategoryId = id;
       }
     });
-    
+
     // Si no hay coincidencias, usar una categoría por defecto
     if (maxScore === 0) {
       // Por defecto clasificar como "dolores" general
       maxCategoryId = 0;
     }
-    
+
     // Normalizar scores a probabilidades
     const totalScore = Math.max(1, categoryScores.reduce((sum, score) => sum + score, 0));
     const probabilities = categoryScores.map(score => score / totalScore);
-    
+
     // Obtener el nombre de la categoría desde las dimensiones del modelo
     let categoryName = '';
     if (maxCategoryId < modelDimensions.interpreter.categories.length) {
@@ -371,7 +371,7 @@ async function interpretQuery(query) {
       categoryName = 'text';
       maxCategoryId = 0;
     }
-    
+
     return serializeBigInt({
       categoryId: maxCategoryId,
       categoryName,
@@ -383,8 +383,8 @@ async function interpretQuery(query) {
     });
   } catch (error) {
     console.error('Error en interpretación de consulta:', error);
-    return serializeBigInt({ 
-      categoryId: -1, 
+    return serializeBigInt({
+      categoryId: -1,
       categoryName: modelConfig.interpreterCategories[0] || 'text',
       confidence: 0.5,
       confidence_str: '0.5000',
@@ -403,21 +403,21 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas en milisegundos
 function cleanupCache() {
   const now = Date.now();
   let entriesToDelete = [];
-  
+
   searchCache.forEach((value, key) => {
     if (now - value.timestamp > CACHE_TTL) {
       entriesToDelete.push(key);
     }
   });
-  
+
   entriesToDelete.forEach(key => searchCache.delete(key));
-  
+
   // Si el caché sigue siendo demasiado grande después de eliminar entradas expiradas
   if (searchCache.size > CACHE_MAX_SIZE) {
     // Convertir a array para ordenar por timestamp
     const entries = Array.from(searchCache.entries())
       .sort((a, b) => a[1].timestamp - b[1].timestamp);
-      
+
     // Eliminar el 20% de las entradas más antiguas
     const deleteCount = Math.floor(CACHE_MAX_SIZE * 0.2);
     entries.slice(0, deleteCount).forEach(([key]) => searchCache.delete(key));
@@ -430,17 +430,17 @@ setInterval(cleanupCache, 60 * 60 * 1000);
 // Función para serializar BigInt a string en objetos JSON
 function serializeBigInt(obj) {
   if (obj === null || obj === undefined) return obj;
-  
+
   // Si es BigInt, convertirlo a string
   if (typeof obj === 'bigint') {
     return obj.toString();
   }
-  
+
   // Si es array, procesar cada elemento
   if (Array.isArray(obj)) {
     return obj.map(serializeBigInt);
   }
-  
+
   // Si es objeto, procesar cada propiedad
   if (typeof obj === 'object') {
     const result = {};
@@ -449,7 +449,7 @@ function serializeBigInt(obj) {
     }
     return result;
   }
-  
+
   // Devolver otros tipos sin cambios
   return obj;
 }
@@ -459,7 +459,7 @@ async function searchPohaByQuery(query, database) {
   try {
     // Normalizar consulta para clave de caché
     const cacheKey = query.trim().toLowerCase();
-    
+
     // Verificar caché
     if (searchCache.has(cacheKey)) {
       console.log('Resultado obtenido de caché');
@@ -471,34 +471,34 @@ async function searchPohaByQuery(query, database) {
 
     // Interpretar la consulta
     const interpretation = await interpretQuery(query);
-    
+
     if (!interpretation.categoryName) {
-      return { 
-        success: false, 
-        error: 'No se pudo interpretar la consulta' 
+      return {
+        success: false,
+        error: 'No se pudo interpretar la consulta'
       };
     }
-    
+
     // Extraer palabras clave adicionales
     const keywords = query.toLowerCase()
       .split(' ')
       .filter(w => w.length > 3)
       .slice(0, 3);
-    
+
     const category = interpretation.categoryName;
-    
+
     // Consulta SQL mejorada que relaciona las dolencias con las categorías
     // en lugar de hacer búsquedas de texto genéricas
 
     // Palabras clave extra para búsqueda basadas en la categoría
     const extraKeywords = [];
-    
+
     // Detección de términos específicos en la consulta
     const queryLower = query.toLowerCase();
     const hasHinchazón = queryLower.includes('hinchaz');
     const hasAbdominal = queryLower.includes('abdom');
     const hasInflamación = queryLower.includes('inflam');
-    
+
     // Añadir términos específicos según la categoría y la consulta
     if (category === 'desinflamante' || hasHinchazón || hasAbdominal || hasInflamación) {
         extraKeywords.push('hinchazón', 'abdominal', 'inflamación', 'vientre');
@@ -511,44 +511,44 @@ async function searchPohaByQuery(query, database) {
         const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
         extraKeywords.push(...queryWords);
     }
-    
+
     console.log('Palabras clave adicionales para búsqueda:', extraKeywords);
 
     // Paso 1: Intentar relacionar la categoría con las dolencias en la base de datos
     let dolenciasRelacionadas = [];
     try {
       console.log('Buscando dolencias relacionadas con categoría:', category);
-      
+
       // Primero buscamos dolencias que coincidan con nuestra categoría
       const dolenciasQuery = `
-        SELECT iddolencias, descripcion 
-        FROM dolencias 
+        SELECT iddolencias, descripcion
+        FROM dolencias
         WHERE estado = 'AC' AND (
-          descripcion LIKE ? OR 
+          descripcion LIKE ? OR
           descripcion LIKE ? OR
           descripcion LIKE ?
           ${extraKeywords.map(() => 'OR descripcion LIKE ?').join(' ')}
         )
         LIMIT 8
       `;
-      
+
       // Varios patrones de búsqueda para aumentar posibilidades de coincidencia
       let dolenciasParams = [
         `%${category}%`,                        // Contiene la categoría en cualquier parte
         `%${category.split(' ')[0]}%`,         // Contiene la primera palabra
         `%${category.replace(/^(el|la|los|las) /, '')}%` // Sin artículos al inicio
       ];
-      
+
       // Añadir los parámetros de extraKeywords
       extraKeywords.forEach(keyword => {
         dolenciasParams.push(`%${keyword}%`);
       });
-      
+
       const dolenciasResultado = await database.query(dolenciasQuery, {
         replacements: dolenciasParams,
         type: database.QueryTypes.SELECT
       });
-      
+
       if (dolenciasResultado.length > 0) {
         console.log('Dolencias encontradas:', dolenciasResultado.length);
         dolenciasRelacionadas = dolenciasResultado.map(d => d.iddolencias);
@@ -558,21 +558,21 @@ async function searchPohaByQuery(query, database) {
     } catch (dolenciaError) {
       console.error('Error al buscar dolencias relacionadas:', dolenciaError);
     }
-    
+
     // Gestión especial para términos específicos como "hinchazón abdominal"
     let idDolenviasEspecificas = [];
-    if (query.toLowerCase().includes('hinchazón abdominal') || 
+    if (query.toLowerCase().includes('hinchazón abdominal') ||
         query.toLowerCase().includes('hinchazón') && query.toLowerCase().includes('abdominal')) {
         // ID 21 corresponde a "Hinchazón abdominal" según tu base de datos
         console.log('Detectada consulta específica de hinchazón abdominal, forzando coincidencia con ID 21');
         idDolenviasEspecificas.push(21);
     }
-    
+
     // Consulta simplificada para evitar problemas con la cláusula ORDER BY
     const sql = `
-      SELECT 
-        p.idpoha, 
-        p.preparado, 
+      SELECT
+        p.idpoha,
+        p.preparado,
         p.recomendacion,
         p.mate,
         p.terere,
@@ -581,13 +581,13 @@ async function searchPohaByQuery(query, database) {
         GROUP_CONCAT(DISTINCT d.iddolencias SEPARATOR ', ') AS dolencias_ids,
         GROUP_CONCAT(DISTINCT pl.nombre SEPARATOR ', ') AS plantas_nombres,
         GROUP_CONCAT(DISTINCT pl.nombre_cientifico SEPARATOR ', ') AS plantas_cientificos
-      FROM 
+      FROM
         poha p
       LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
       LEFT JOIN dolencias d ON dp.iddolencias = d.iddolencias
       LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha
       LEFT JOIN planta pl ON pp.idplanta = pl.idplanta
-      WHERE 
+      WHERE
         p.estado = 'AC' AND (
         ${idDolenviasEspecificas.length > 0 ? `d.iddolencias IN (${idDolenviasEspecificas.join(',')}) OR ` : ''}
         ${dolenciasRelacionadas.length > 0 ? `d.iddolencias IN (${dolenciasRelacionadas.join(',')}) OR ` : ''}
@@ -596,14 +596,14 @@ async function searchPohaByQuery(query, database) {
         pl.nombre_cientifico LIKE ? OR
         p.preparado LIKE ? OR
         p.recomendacion LIKE ?)
-      GROUP BY 
+      GROUP BY
         p.idpoha, p.preparado, p.recomendacion, p.mate, p.terere, p.te
       LIMIT 50
     `;
 
     // Construcción de parámetros para la consulta (simplificada)
     let params = [];
-    
+
     // Ya no necesitamos estos parámetros porque estamos construyendo los IDs directamente en el SQL
     // if (idDolenviasEspecificas.length > 0) {
     //     params.push(idDolenviasEspecificas);
@@ -611,39 +611,39 @@ async function searchPohaByQuery(query, database) {
     // if (dolenciasRelacionadas.length > 0) {
     //     params.push(dolenciasRelacionadas);
     // }
-    
+
     // Términos de búsqueda
-    const searchTerm = queryLower.includes('hinchaz') && queryLower.includes('abdom') 
-        ? '%hinchaz%abdom%' 
+    const searchTerm = queryLower.includes('hinchaz') && queryLower.includes('abdom')
+        ? '%hinchaz%abdom%'
         : `%${category}%`;
-        
+
     params = params.concat(Array(5).fill(searchTerm));
-    
+
     // Ejecutar consulta SQL mejorada
     let results = [];
     try {
       console.log('Buscando remedios con categoría:', category);
       console.log('Total de parámetros SQL:', params.length);
-      
+
       // Ejecutar la consulta principal con los parámetros
       if (params.length > 0 && category) {
-        results = await database.query(sql, { 
+        results = await database.query(sql, {
           replacements: params,
-          type: database.QueryTypes.SELECT 
+          type: database.QueryTypes.SELECT
         });
-        
+
         console.log(`Se encontraron ${results.length} remedios para la categoría "${category}"`);
       }
-      
+
       // Si no encontramos resultados con la consulta anterior, usar consulta de respaldo
       if (results.length === 0) {
         console.log('No se encontraron resultados, intentando con consulta de respaldo');
-        
+
         // Consulta de respaldo: búsqueda más amplia por palabras clave
         const keywordSql = `
-          SELECT 
-            p.idpoha, 
-            p.preparado, 
+          SELECT
+            p.idpoha,
+            p.preparado,
             p.recomendacion,
             p.mate,
             p.terere,
@@ -651,7 +651,7 @@ async function searchPohaByQuery(query, database) {
             GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ') AS dolencias,
             GROUP_CONCAT(DISTINCT pl.nombre SEPARATOR ', ') AS plantas_nombres,
             GROUP_CONCAT(DISTINCT pl.nombre_cientifico SEPARATOR ', ') AS plantas_cientificos
-          FROM 
+          FROM
             poha p
           LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
           LEFT JOIN dolencias d ON dp.iddolencias = d.iddolencias
@@ -665,11 +665,11 @@ async function searchPohaByQuery(query, database) {
               p.recomendacion LIKE ?
             `).join(' OR ')}
           )
-          GROUP BY 
+          GROUP BY
             p.idpoha, p.preparado, p.recomendacion, p.mate, p.terere, p.te
           LIMIT 20
         `;
-        
+
         // Generar parámetros para cada palabra clave
         const keywordParams = [];
         keywords.forEach(keyword => {
@@ -677,25 +677,25 @@ async function searchPohaByQuery(query, database) {
             keywordParams.push(...Array(4).fill(`%${keyword}%`));
           }
         });
-        
+
         if (keywordParams.length > 0) {
-          const keywordResults = await database.query(keywordSql, { 
+          const keywordResults = await database.query(keywordSql, {
             replacements: keywordParams,
-            type: database.QueryTypes.SELECT 
+            type: database.QueryTypes.SELECT
           });
-          
+
           console.log(`Consulta de respaldo encontró ${keywordResults.length} resultados`);
           results = keywordResults;
         }
       }
-      
+
       // Si aún no hay resultados, mostrar algunos remedios populares
       if (results.length === 0) {
         console.log('No hay resultados específicos, mostrando remedios populares');
         const defaultSql = `
-          SELECT 
-            p.idpoha, 
-            p.preparado, 
+          SELECT
+            p.idpoha,
+            p.preparado,
             p.recomendacion,
             p.mate,
             p.terere,
@@ -703,20 +703,20 @@ async function searchPohaByQuery(query, database) {
             GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ') AS dolencias,
             GROUP_CONCAT(DISTINCT pl.nombre SEPARATOR ', ') AS plantas_nombres,
             GROUP_CONCAT(DISTINCT pl.nombre_cientifico SEPARATOR ', ') AS plantas_cientificos
-          FROM 
+          FROM
             poha p
           LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
           LEFT JOIN dolencias d ON dp.iddolencias = d.iddolencias
           LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha
           LEFT JOIN planta pl ON pp.idplanta = pl.idplanta
           WHERE p.estado = 'AC'
-          GROUP BY 
+          GROUP BY
             p.idpoha, p.preparado, p.recomendacion, p.mate, p.terere, p.te
           LIMIT 10
         `;
-        
-        results = await database.query(defaultSql, { 
-          type: database.QueryTypes.SELECT 
+
+        results = await database.query(defaultSql, {
+          type: database.QueryTypes.SELECT
         });
       }
     } catch (sqlError) {
@@ -739,31 +739,31 @@ async function searchPohaByQuery(query, database) {
       // Añadir metadatos para facilitar el debugging y mejorar la experiencia de usuario
       metadata: {
         categoryId: interpretation.categoryId,
-        searchType: results.length > 0 ? 
-          (dolenciasRelacionadas.length > 0 ? "category_match" : "keyword_match") : 
+        searchType: results.length > 0 ?
+          (dolenciasRelacionadas.length > 0 ? "category_match" : "keyword_match") :
           "default_results",
-        matchMethod: dolenciasRelacionadas.length > 0 ? "dolencias_relacionadas" : 
+        matchMethod: dolenciasRelacionadas.length > 0 ? "dolencias_relacionadas" :
                      (keywords.length > 0 ? "palabras_clave" : "general")
       }
     };
-    
+
     // Almacenar en caché antes de devolver (con timestamp)
     result.timestamp = Date.now();
     searchCache.set(cacheKey, result);
-    
+
     // Si el caché ha crecido demasiado, limpiar las entradas antiguas
     if (searchCache.size > CACHE_MAX_SIZE) {
       cleanupCache();
     }
-    
+
     // Asegurarnos de que todos los valores BigInt sean convertidos a string
     return serializeBigInt(result);
   } catch (error) {
     console.error('Error en búsqueda:', error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: error.message,
-      timestamp: Date.now() 
+      timestamp: Date.now()
     };
   }
 }
@@ -775,7 +775,7 @@ module.exports = {
   validateText,
   interpretQuery,
   searchPohaByQuery,
-  
+
   // Variables para monitoreo del estado
   VERSION,
   get validationSession() { return validationSession; },

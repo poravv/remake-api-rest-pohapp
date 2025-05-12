@@ -1,2 +1,63 @@
+# Archivos de entorno
 .env
-node_modules
+.env.local
+.env.*.local
+
+# Directorios de dependencias
+node_modules/
+jspm_packages/
+
+# Archivos de respaldo y obsoletos
+archivos_obsoletos/
+**/archivos_obsoletos/
+backup/
+*.bak
+*.backup
+
+# Archivos de log
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Directorios de caché
+.npm/
+.eslintcache
+.node_repl_history
+.yarn-integrity
+
+# Archivos de salida
+dist/
+build/
+coverage/
+
+# Archivos temporales del sistema
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Archivos de respaldo
+archivos_obsoletos/
+/backups/
+
+# Archivos específicos de IDE
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+.settings/
+*.launch
+*.iml
+*.ipr
+*.iws
+
+# Otros
+.vercel
+.next

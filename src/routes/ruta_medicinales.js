@@ -1,6 +1,6 @@
 const express = require('express')
 const ruta = express.Router();
-const database = require('../database')
+const database = require('../config/database')
 const { QueryTypes } = require('sequelize');
 const validators = require('../utils/validators');
 
@@ -10,11 +10,11 @@ ruta.get('/get/', async (req, res) => {
         await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
             res.json(response);
         }).catch((error) => {
-            console.error(error); 
+            console.error(error);
             console.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
-        console.error(error); 
+        console.error(error);
         console.log(`Algo salió mal ${error}`);
     }
 
@@ -28,11 +28,11 @@ ruta.get('/getid/:idpoha', async (req, res) => {
         await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
             res.json(response);
         }).catch((error) => {
-            console.error(error); 
+            console.error(error);
             console.log(`Algo salió mal ${error}`);
         });
     } catch (error) {
-        console.error(error); 
+        console.error(error);
         console.log(`Algo salió mal ${error}`);
     }
 
@@ -84,7 +84,7 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
         res.json(rs_planta);
 
     } catch (error) {
-        console.error(error); 
+        console.error(error);
         console.log(`Algo salió mal ${error}`);
     }
 
@@ -100,7 +100,7 @@ ruta.get('/busqueda-natural/:consulta', async (req, res) => {
         const result = await validators.searchPohaByQuery(req.params.consulta, database);
         res.json(result);
     } catch (error) {
-        console.error(error); 
+        console.error(error);
         console.log(`Algo salió mal ${error}`);
         res.status(500).json({ success: false, error: error.message });
     }

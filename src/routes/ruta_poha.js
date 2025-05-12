@@ -1,11 +1,11 @@
 const express = require('express')
 const ruta = express.Router();
-const poha = require('../model/poha')
-const dolencias_poha = require('../model/dolencias_poha');
-const poha_planta = require('../model/poha_planta');
-const autor = require('../model/autor');
-const planta = require('../model/planta');
-const dolencias = require('../model/dolencias');
+const poha = require('../models/poha')
+const dolencias_poha = require('../models/dolencias_poha');
+const poha_planta = require('../models/poha_planta');
+const autor = require('../models/autor');
+const planta = require('../models/planta');
+const dolencias = require('../models/dolencias');
 const { Op } = require('sequelize');
 
 ruta.get('/count/', async (req, res) => {
@@ -169,7 +169,7 @@ ruta.put('/put/:idpoha', async (req, res) => {
 })
 
 ruta.delete('/delete/:idpoha', async (req, res) => {
-    
+
     await poha_planta.destroy({
         where: {
             idpoha: req.params.idpoha,

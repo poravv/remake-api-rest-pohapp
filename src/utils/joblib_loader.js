@@ -17,12 +17,12 @@ async function load(joblibPath) {
     if (!fs.existsSync(joblibPath)) {
       throw new Error(`El archivo joblib no existe: ${joblibPath}`);
     }
-    
+
     // Crear un archivo temporal para el script Python
     const tempDir = os.tmpdir();
     const scriptPath = path.join(tempDir, `load_joblib_${Date.now()}.py`);
     const outputPath = path.join(tempDir, `joblib_data_${Date.now()}.json`);
-    
+
     // Escribir script Python para cargar el archivo joblib
     const pythonScript = `
 import joblib
@@ -45,10 +45,10 @@ class NumpyEncoder(json.JSONEncoder):
 # Cargar el archivo joblib
 try:
     data = joblib.load('${joblibPath.replace(/\\/g, '\\\\')}')
-    
+
     # Manejar diferentes tipos de objetos
     export_data = {}
-    
+
     # Si es un vectorizador TF-IDF
     if isinstance(data, TfidfVectorizer):
         print("Detectado TfidfVectorizer, exportando solo propiedades necesarias")
@@ -73,11 +73,11 @@ try:
     else:
         print(f"Tipo de datos desconocido: {type(data)}")
         export_data = str(data)
-    
+
     # Guardar los datos como JSON
     with open('${outputPath.replace(/\\/g, '\\\\')}', 'w') as f:
         json.dump(export_data, f, cls=NumpyEncoder)
-    
+
     print("OK")
     sys.exit(0)
 except Exception as e:
@@ -89,7 +89,7 @@ except Exception as e:
 
     // Escribir el script en el archivo temporal
     fs.writeFileSync(scriptPath, pythonScript);
-    
+
     // Ejecutar el script Python
     console.log("Ejecutando script Python...");
     // Intentar primero con python3, luego con python si falla
@@ -98,7 +98,7 @@ except Exception as e:
       timeout: 30000, // 30 segundos
       stdio: 'pipe'
     });
-    
+
     // Si python3 no está disponible, intentar con python
     if (result.error && result.error.code === 'ENOENT') {
       console.log("python3 no encontrado, intentando con python...");
@@ -108,27 +108,27 @@ except Exception as e:
         stdio: 'pipe'
       });
     }
-    
+
     console.log("Resultado Python:", {
       status: result.status,
       stdout: result.stdout,
       stderr: result.stderr,
       error: result.error
     });
-    
+
     // Verificar errores de ejecución
     if (result.status !== 0) {
       throw new Error(`Error al ejecutar Python: ${result.stderr || (result.error && result.error.message) || 'Error desconocido'}`);
     }
-    
+
     // Leer el archivo de salida
     if (!fs.existsSync(outputPath)) {
       throw new Error('No se pudo generar el archivo de salida');
     }
-    
+
     const jsonData = fs.readFileSync(outputPath, 'utf-8');
     const data = JSON.parse(jsonData);
-    
+
     // Limpieza
     try {
       fs.unlinkSync(scriptPath);
@@ -136,7 +136,7 @@ except Exception as e:
     } catch (e) {
       console.warn('No se pudieron eliminar archivos temporales:', e);
     }
-    
+
     return data;
   } catch (error) {
     console.error('Error al cargar archivo joblib:', error);

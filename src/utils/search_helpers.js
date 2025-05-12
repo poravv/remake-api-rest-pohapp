@@ -1,7 +1,7 @@
 /**
  * Módulo para realizar una búsqueda efectiva en la base de datos POHAPP
  * utilizando la interpretación del modelo de IA.
- * 
+ *
  * Este archivo implementa estrategias avanzadas de búsqueda para conectar
  * las categorías interpretadas por el modelo con los datos reales en la base de datos.
  */
@@ -20,7 +20,7 @@ const { Op } = require('sequelize');
 async function searchRemediosByCategory(database, category, keywords = []) {
   try {
     console.log(`[Búsqueda avanzada] Categoría: ${category}, Keywords: ${keywords.join(', ')}`);
-    
+
     // Paso 1: Buscar dolencias relacionadas con la categoría
     const dolencias = await dolenciaModel.findAll({
       where: {
@@ -33,10 +33,10 @@ async function searchRemediosByCategory(database, category, keywords = []) {
       attributes: ['iddolencias', 'descripcion'],
       limit: 5
     });
-    
+
     if (dolencias.length > 0) {
       console.log(`[Búsqueda] Encontradas ${dolencias.length} dolencias relacionadas`);
-      
+
       // Paso 2: Buscar pohas relacionados con esas dolencias
       const pohas = await pohaModel.findAll({
         include: [
@@ -54,17 +54,17 @@ async function searchRemediosByCategory(database, category, keywords = []) {
         },
         limit: 20
       });
-      
+
       return pohas;
     }
-    
+
     // Paso 3: Si no hay dolencias, buscar por palabras clave en preparados
     return await pohaModel.findAll({
       where: {
         [Op.or]: [
           { preparado: { [Op.like]: `%${category}%` } },
           { recomendacion: { [Op.like]: `%${category}%` } },
-          ...keywords.map(keyword => ({ 
+          ...keywords.map(keyword => ({
             [Op.or]: [
               { preparado: { [Op.like]: `%${keyword}%` } },
               { recomendacion: { [Op.like]: `%${keyword}%` } }
@@ -75,7 +75,7 @@ async function searchRemediosByCategory(database, category, keywords = []) {
       },
       limit: 15
     });
-    
+
   } catch (error) {
     console.error('[Búsqueda] Error:', error);
     return [];

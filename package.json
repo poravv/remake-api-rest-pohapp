@@ -3,19 +3,28 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
-    "mysql": "^2.18.1",
     "mysql2": "^2.3.3",
-    "nodemon": "^2.0.19",
     "onnxruntime-node": "^1.21.1",
     "sequelize": "^6.21.3"
+  },
+  "devDependencies": {
   },
   "name": "api-rest-pohaap",
   "version": "1.0.0",
   "description": "Api rest para comunicar poha ñanApp",
   "main": "./src/server.js",
   "scripts": {
-    "start": "nodemon server",
-    "test:models": "node test_models.js"
+    "start": "nodemon src/server.js",
+    "start:prod": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node tests/index.js",
+    "test:models": "node tests/test_models.js",
+    "test:search": "bash tests/test-search.sh",
+    "test:api": "node tests/test_api_reorganizada.js",
+    "maintenance": "bash pohapp_maintenance.sh",
+    "cleanup": "bash backup_old_routes.sh",
+    "docker:up": "bash pohapp-docker-helper.sh start",
+    "docker:down": "bash pohapp-docker-helper.sh stop"
   },
   "author": "Andres Vera",
   "license": "ISC"

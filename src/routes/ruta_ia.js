@@ -1,6 +1,6 @@
 const express = require('express');
 const ruta = express.Router();
-const database = require('../database');
+const database = require('../config/database');
 const validators = require('../utils/validators');
 
 // Middleware simple de rate limiting
@@ -8,10 +8,10 @@ const rateLimit = {
   windowMs: 15 * 60 * 1000, // 15 minutos
   maxRequests: 100, // límite de 100 solicitudes por ventana por IP
   clients: new Map(),
-  
+
   middleware: function(req, res, next) {
     const ip = req.ip || req.connection.remoteAddress;
-    
+
     if (!this.clients.has(ip)) {
       this.clients.set(ip, {
         count: 1,
@@ -20,9 +20,9 @@ const rateLimit = {
       next();
       return;
     }
-    
+
     const client = this.clients.get(ip);
-    
+
     // Restablecer contador si expiró el período
     if (Date.now() > client.resetTime) {
       client.count = 1;
@@ -30,17 +30,17 @@ const rateLimit = {
       next();
       return;
     }
-    
+
     // Incrementar contador y verificar límite
     client.count++;
-    
+
     if (client.count > this.maxRequests) {
       return res.status(429).json({
         success: false,
         error: 'Demasiadas solicitudes. Por favor, intente de nuevo más tarde.'
       });
     }
-    
+
     next();
   }
 };
@@ -66,19 +66,19 @@ ruta.use(rateLimit.middleware.bind(rateLimit));
 // Ruta para validar texto
 ruta.post('/validar', async (req, res) => {
   const { texto } = req.body;
-  
+
   if (!texto) {
     return res.status(400).json({ success: false, error: 'Se requiere texto para validar' });
   }
-  
+
   // Limitar tamaño de entrada
   if (texto.length > 2000) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'El texto excede el límite de 2000 caracteres' 
+    return res.status(400).json({
+      success: false,
+      error: 'El texto excede el límite de 2000 caracteres'
     });
   }
-  
+
   try {
     const result = await validators.validateText(texto);
     res.json({ success: true, ...result });
@@ -90,11 +90,11 @@ ruta.post('/validar', async (req, res) => {
 // Ruta para buscar por consulta en lenguaje natural
 ruta.get('/buscar', async (req, res) => {
   const { consulta } = req.query;
-  
+
   if (!consulta) {
     return res.status(400).json({ success: false, error: 'Se requiere una consulta para buscar' });
   }
-  
+
   try {
     const result = await validators.searchPohaByQuery(consulta, database);
     res.json(result);
@@ -106,11 +106,11 @@ ruta.get('/buscar', async (req, res) => {
 // Ruta para interpretar consulta sin realizar búsqueda
 ruta.get('/interpretar', async (req, res) => {
   const { consulta } = req.query;
-  
+
   if (!consulta) {
     return res.status(400).json({ success: false, error: 'Se requiere una consulta para interpretar' });
   }
-  
+
   try {
     const result = await validators.interpretQuery(consulta);
     res.json({ success: true, ...result });
@@ -128,17 +128,17 @@ ruta.post('/admin/recargar-modelos', async (req, res) => {
   if (!security.verifySignature(req, process.env.POHAPP_API_SECRET)) {
     return res.status(401).json({ success: false, error: 'No autorizado' });
   }
-  
+
   try {
     console.log('Recargando modelos de IA...');
     const initialized = await validators.initModels();
-    
+
     if (initialized) {
       console.log('Modelos recargados correctamente');
     } else {
       console.error('Error al recargar modelos');
     }
-    
+
     res.json({ success: initialized });
   } catch (error) {
     console.error('Error al recargar modelos:', error);
@@ -157,12 +157,12 @@ ruta.get('/estado', (req, res) => {
       interpreterVectorizer: !!validators.interpreterVectorizer,
       interpreterCategories: !!validators.interpreterCategories
     };
-    
+
     // Calculamos el porcentaje de componentes disponibles
     const totalComponentes = Object.keys(modelosDisponibles).length;
     const componentesDisponibles = Object.values(modelosDisponibles).filter(Boolean).length;
     const porcentajeDisponible = (componentesDisponibles / totalComponentes) * 100;
-    
+
     res.json({
       success: true,
       status: 'online',
@@ -175,10 +175,10 @@ ruta.get('/estado', (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       status: 'error',
-      error: error.message 
+      error: error.message
     });
   }
 });

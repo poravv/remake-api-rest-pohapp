@@ -3,9 +3,9 @@
  */
 
 // Importar las dependencias
-const validators = require('./src/utils/validators');
-const modelConfig = require('./src/utils/model_config');
-const security = require('./src/utils/security');
+const validators = require('../src/utils/validators');
+const modelConfig = require('../src/utils/model_config');
+const security = require('../src/utils/security');
 
 // Crear un mock básico de la base de datos
 const mockDatabase = {

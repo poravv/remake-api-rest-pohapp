@@ -1,37 +1,45 @@
-const express = require('express');
-const app = express();
-const database = require('./database');
-const rutas = require('./config_rutas');
-const port = process.env.PORT || 3000;
-const cors = require('cors');
+/**
+ * Punto de entrada principal de la aplicación
+ */
+const app = require('./app');
+const database = require('./config/database');
+const config = require('./config/config');
 
-app.use(cors());/*aplica permiso para todos los origenes*/
+// Puerto donde se ejecutará el servidor
+const PORT = config.PORT;
 
-/*Filtramos los origenes que se pueden conectar*/
-//const siteList = ['http://localhost:3000','https://pohapp-web.onrender.com/']
-//app.use(cors({origin:siteList}));
+/**
+ * Inicializar la conexión a la base de datos
+ */
+const inicializarBaseDeDatos = async () => {
+  try {
+    await database.authenticate();
+    console.log('Conexión a la base de datos establecida correctamente');
+  } catch (error) {
+    console.error('Error al conectar con la base de datos:', error);
+    process.exit(1); // Salir con error si no se puede conectar a la BD
+  }
+};
 
-const conecta = async () => {
-    try {
-        database.authenticate()
-        console.log("Base de datos conectada");
-    } catch (error) {
-        console.log("Error: ", error)
-    }
-}
+/**
+ * Iniciar el servidor
+ */
+const iniciarServidor = async () => {
+  try {
+    // Conectar a la base de datos
+    await inicializarBaseDeDatos();
 
-conecta();
-//Manejador de errores
+    // Iniciar el servidor HTTP
+    app.listen(PORT, () => {
+      console.log(`Servidor ejecutándose en el puerto: ${PORT}`);
+      console.log(`Ambiente: ${config.NODE_ENV}`);
+      console.log(`URL: http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Error al iniciar el servidor:', error);
+    process.exit(1);
+  }
+};
 
-app.use(express.urlencoded({ limit: '50mb', extended: false }));
-app.use(express.json({ limit: '50mb', extended: true, parameterLimit: 500000 }));
-
-app.use(rutas)
-
-app.get('/', (_req, res) => {
-    res.send("Api rest Poha ÑanApp")
-})
-
-app.listen(port, () => {
-    console.log("App corriendo en el puerto: ", port)
-})
+// Iniciar la aplicación
+iniciarServidor();

@@ -2,11 +2,71 @@
 
 API REST para la aplicación Poha ÑanApp con integración de modelos de IA.
 
+> **ACTUALIZACÍÓN IMPORTANTE:** El proyecto ha sido reorganizado siguiendo una estructura MVC para mejorar la mantenibilidad y escalabilidad. Consulte [ESTRUCTURA_PROYECTO.md](./ESTRUCTURA_PROYECTO.md) para obtener detalles sobre la nueva organización.
+
+## Características principales
+
+- API RESTful para la gestión de plantas medicinales y remedios tradicionales
+- Integración con modelos de IA para búsquedas inteligentes y procesamiento de lenguaje natural
+- Arquitectura MVC con separación clara de responsabilidades
+- Manejo centralizado de errores y validaciones
+- Autenticación y autorización mediante firmas HMAC
+
+## Configuración del entorno
+
+1. Clonar el repositorio:
+
+```bash
+git clone https://github.com/username/api-rest-pohapp.git
+cd api-rest-pohapp
+```
+
+2. Instalar dependencias:
+
+```bash
+npm install
+```
+
+3. Configurar variables de entorno:
+
+```bash
+cp .env.example .env
+```
+
+Editar el archivo `.env` con los valores correspondientes a tu entorno.
+
+## Ejecución del proyecto
+
+Para iniciar el servidor en modo desarrollo:
+
+```bash
+npm start
+```
+
+## Estructura del proyecto
+
+La API sigue una estructura MVC (Modelo-Vista-Controlador):
+
+```
+/src
+  /config           # Configuraciones
+  /controllers      # Controladores 
+  /middlewares      # Middlewares
+  /models           # Modelos de datos
+  /routes           # Rutas de la API
+  /services         # Servicios
+  /utils            # Utilidades
+  app.js            # Configuración Express
+  server.js         # Punto de entrada
+```
+
+Para más detalles, consulte [ESTRUCTURA_PROYECTO.md](./ESTRUCTURA_PROYECTO.md).
+
 ## Nuevas funcionalidades de IA
 
-La API ahora incluye capacidades de búsqueda por lenguaje natural y validación de textos utilizando modelos de machine learning (ONNX).
+La API incluye capacidades de búsqueda por lenguaje natural y validación de textos utilizando modelos de machine learning (ONNX).
 
-## Versión
+### Versión de modelos de IA
 
 Esta implementación corresponde a la versión del modelo v20250504 (Mayo 2025).
 
@@ -16,9 +76,20 @@ Esta implementación corresponde a la versión del modelo v20250504 (Mayo 2025).
 2. **Interpretación de consultas**: Traduce consultas en lenguaje natural a categorías.
 3. **Búsqueda inteligente**: Permite realizar búsquedas usando lenguaje natural.
 
-## Endpoints de IA
+## Principales endpoints
 
-### Validación de texto
+### Plantas
+
+- `GET /api/pohapp/planta`: Obtener todas las plantas
+- `GET /api/pohapp/planta/:idplanta`: Obtener una planta por ID
+- `GET /api/pohapp/planta/buscar/:nombre`: Buscar plantas por nombre
+- `POST /api/pohapp/planta`: Crear una nueva planta
+- `PUT /api/pohapp/planta/:idplanta`: Actualizar una planta
+- `DELETE /api/pohapp/planta/:idplanta`: Eliminar una planta
+
+### IA - Endpoints
+
+#### Validación de texto
 ```
 POST /api/pohapp/ia/validar
 ```
@@ -28,138 +99,56 @@ POST /api/pohapp/ia/validar
   "texto": "El texto a validar"
 }
 ```
-**Respuesta:**
+
+#### Interpretación de consultas
+```
+POST /api/pohapp/ia/interpretar
+```
+**Body:**
 ```json
 {
-  "success": true,
-  "isValid": true,
-  "confidence": 0.95,
-  "score": 0.95
+  "consulta": "Consulta en lenguaje natural"
 }
 ```
 
-### Búsqueda en lenguaje natural
+#### Búsqueda inteligente
 ```
-GET /api/pohapp/ia/buscar?consulta=tengo dolor de cabeza
-```
-**Respuesta:**
-```json
-{
-  "success": true,
-  "interpretedCategory": "dolor de cabeza",
-  "confidence": 0.87,
-  "results": [...],
-  "totalResults": 5
-}
+GET /api/pohapp/ia/buscar?q=tu consulta
 ```
 
-### Interpretar consulta
-```
-GET /api/pohapp/ia/interpretar?consulta=tengo dolor de cabeza
-```
-**Respuesta:**
-```json
-{
-  "success": true,
-  "categoryId": 4,
-  "categoryName": "dolor de cabeza",
-  "confidence": 0.87
-}
-```
+## Migración desde la estructura antigua
 
-### Búsqueda en ruta medicinales
-```
-GET /api/pohapp/medicinales/busqueda-natural/tengo dolor de cabeza
-```
-
-## Instalación
-
-1. Clonar el repositorio
-2. Instalar dependencias:
-```bash
-npm install
-```
-3. Verificar que los modelos ONNX estén en la carpeta `/ONNX`
-4. Instalar las dependencias de Python necesarias:
-```bash
-pip install joblib scikit-learn numpy
-```
-5. Iniciar el servidor:
-```bash
-npm start
-```
-
-## Prueba de modelos
-
-Puedes probar los modelos con el script incluido:
-```bash
-node test_models.js
-```
-
-## Ejecutar pruebas
-
-Para verificar el correcto funcionamiento de los modelos ONNX, puedes ejecutar las pruebas automatizadas:
+Si está trabajando con la versión anterior del proyecto, puede utilizar el script de migración para adaptarse a la nueva estructura:
 
 ```bash
-# Ejecutar todas las pruebas disponibles
-node tests/index.js
-
-# Ejecutar una prueba específica
-node tests/index.js --test=full
-
-# Pruebas disponibles
-node tests/index.js --test=init     # Prueba de inicialización de modelos
-node tests/index.js --test=models   # Prueba básica de modelos
-node tests/index.js --test=simple   # Prueba simple de validación
-node tests/index.js --test=interpret # Prueba de interpretación de consultas
-node tests/index.js --test=search   # Prueba de búsqueda por lenguaje natural
-node tests/index.js --test=full     # Prueba completa de integración
+./migrate_models.sh
 ```
 
-Las pruebas verifican:
-- Carga correcta de modelos ONNX
-- Validación de texto
-- Interpretación de consultas en lenguaje natural
-- Búsqueda por lenguaje natural
-- Sistema de firma para endpoints administrativos
+Este script:
+- Migra modelos de `/src/model` a `/src/models`
+- Genera controladores en `/src/controllers`
+- Crea archivos de rutas en `/src/routes`
 
-## Dependencias principales
+## Tests
 
-- Express: Framework web
-- Sequelize: ORM para base de datos
-- ONNX Runtime: Para ejecutar modelos de machine learning
-- Node-joblib: Para cargar artefactos de Python
+Para ejecutar las pruebas:
 
-## Seguridad y optimizaciones
-
-### Limitación de velocidad (Rate Limiting)
-La API implementa limitación de velocidad para prevenir abusos:
-- 100 peticiones por IP cada 15 minutos
-
-### Caché
-Los resultados de búsqueda se almacenan en caché para mejorar el rendimiento:
-- TTL (tiempo de vida): 24 horas
-- Tamaño máximo: 500 entradas
-- Limpieza automática de caché cada hora
-
-### Endpoints administrativos
-Los endpoints administrativos requieren autenticación mediante firma HMAC:
-- API Key
-- API Secret
-- Firma basada en timestamp + ruta + cuerpo
-
-### Validación de entradas
-Todas las entradas de usuario están validadas y limitadas en tamaño.
-
-## Ejemplos de cliente
-
-La carpeta `/examples` contiene ejemplos de uso de la API desde aplicaciones cliente.
-
-```javascript
-// Ejemplo de búsqueda con lenguaje natural
-async function buscarRemedios(consulta) {
-  const response = await fetch(`/api/pohapp/ia/buscar?consulta=${encodeURIComponent(consulta)}`);
-  const result = await response.json();
-  return result;
-}
+```bash
+npm test
 ```
+
+Para ejecutar pruebas específicas:
+
+```bash
+npm run test:models
+npm run test:search
+```
+
+## Documentación adicional
+
+- [Características de la nueva arquitectura](./CARACTERISTICAS_NUEVA_ARQUITECTURA.md)
+- [Estructura del proyecto](./ESTRUCTURA_PROYECTO.md)
+
+## Licencia
+
+ISC - Andres Vera
