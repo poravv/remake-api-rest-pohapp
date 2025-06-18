@@ -1,0 +1,8 @@
+# Entorno virtual antiguo archivado en miércoles, 18 de junio de 2025, 11:43:02 -03
+# Este entorno contenía:
+joblib==1.5.0
+numpy==2.2.5
+scikit-learn==1.6.1
+scipy==1.15.2
+threadpoolctl==3.6.0
+# ... y        9 paquetes en total

@@ -58,6 +58,15 @@ archivos_obsoletos/
 *.ipr
 *.iws
 
+# Entornos virtuales Python
+venv_pohapp/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Otros
 .vercel
 .next

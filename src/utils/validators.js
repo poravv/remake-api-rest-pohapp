@@ -3,6 +3,7 @@ const joblib = require('./joblib_loader');
 const path = require('path');
 const modelConfig = require('./model_config'); // Configuración básica como fallback
 const modelDimensions = require('./model_dimensions'); // Dimensiones correctas para los modelos
+const tfidf = require('./tfidf_transformer'); // Transformación TF-IDF manual
 
 // Configuración de rutas y versión
 const MODELS_DIR = path.join(__dirname, '../../ONNX');
@@ -108,23 +109,14 @@ async function validateText(text) {
     const processedText = text.toLowerCase();
 
     // Si tenemos la sesión y el vectorizador, usamos el modelo real
-    if (validationSession && validationVectorizer) {
-      console.log('🔍 Usando modelo ONNX para validación');
-
-      // Vectorizar texto (utilizando el vectorizador exportado)
-      let textVector;
-      if (typeof validationVectorizer.transform === 'function') {
-        textVector = validationVectorizer.transform([processedText]);        } else {
-          // Simulación simple: crear un vector con la dimensión correcta del modelo
-          const expectedDimension = modelDimensions.validation.inputDimension; // 100 para validación
-          textVector = {
-            data: new Float32Array(expectedDimension).fill(0.1),
-            shape: [1, expectedDimension]
-          };
-        }
-      const textVectorFloat = new Float32Array(textVector.data);
+    if (validationSession && validationVectorizer && tfidf.isValidVectorizer(validationVectorizer)) {
+      console.log('🔍 Usando modelo ONNX real para validación');
 
       try {
+        // Vectorizar texto usando transformación TF-IDF manual
+        const textVector = tfidf.transformText(processedText, validationVectorizer);
+        const textVectorFloat = new Float32Array(textVector.data);
+
         // Preparar entrada para el modelo
         const inputTensor = new ort.Tensor('float32', textVectorFloat, [1, textVector.shape[1]]);
         const feeds = { [validationSession.inputNames[0]]: inputTensor };
@@ -146,12 +138,15 @@ async function validateText(text) {
           confidence,
           confidence_str: confidence.toFixed(4),
           score: probabilities[1] || 0,
-          using_model: true
+          using_model: true,
+          model_version: VERSION
         };
       } catch (inferenceError) {
-        console.error('Error en inferencia, usando lógica simulada:', inferenceError);
+        console.error('❌ Error en inferencia ONNX:', inferenceError.message);
         // Si falla la inferencia, caemos en la simulación
       }
+    } else if (validationSession && !tfidf.isValidVectorizer(validationVectorizer)) {
+      console.log('⚠️ Modelo ONNX disponible pero vectorizador inválido');
     }
 
     // SIMULACIÓN si no tenemos modelo o falló la inferencia
@@ -188,35 +183,27 @@ async function interpretQuery(query) {
     const processedQuery = query.toLowerCase();
 
     // Si tenemos la sesión y el vectorizador, usamos el modelo real
-    if (interpreterSession && interpreterVectorizer && interpreterCategories) {
-      console.log('🔍 Usando modelo ONNX para interpretación');
+    if (interpreterSession && interpreterVectorizer && interpreterCategories && 
+        tfidf.isValidVectorizer(interpreterVectorizer)) {
+      console.log('🔍 Usando modelo ONNX real para interpretación');
+      
       try {
-        // Vectorizar consulta
-        let queryVector;
-        if (typeof interpreterVectorizer.transform === 'function') {
-          queryVector = interpreterVectorizer.transform([processedQuery]);
-        } else {
-          // Simulación simple: crear un vector con la dimensión correcta del modelo
-          const expectedDimension = modelDimensions.interpreter.inputDimension; // 51
-          queryVector = {
-            data: new Float32Array(expectedDimension).fill(0.1),
-            shape: [1, expectedDimension]
-          };
-        }
-
+        // Vectorizar consulta usando transformación TF-IDF manual
+        const queryVector = tfidf.transformText(processedQuery, interpreterVectorizer);
+        
         // Usar la dimensión correcta del modelo desde la configuración
         const expectedDimension = modelDimensions.interpreter.inputDimension; // 51 dimensiones
 
         console.log('Dimensiones esperadas por el modelo:', expectedDimension);
-        console.log('Dimensiones del vector generado:', queryVector.shape ? queryVector.shape[1] : 'desconocido');
+        console.log('Dimensiones del vector generado:', queryVector.shape[1]);
 
         // Preparar vector para el modelo
         let queryVectorFloat;
 
         // Si las dimensiones coinciden, usar directamente
-        if (queryVector.shape && queryVector.shape[1] === expectedDimension) {
+        if (queryVector.shape[1] === expectedDimension) {
           queryVectorFloat = new Float32Array(queryVector.data);
-        } else if (queryVector.shape && queryVector.shape[1] !== expectedDimension) {
+        } else {
           // Solo mostrar warning si realmente hay diferencia
           console.warn(`⚠️  Ajustando dimensiones del vector de ${queryVector.shape[1]} a ${expectedDimension}`);
           // Crear un nuevo vector con la dimensión esperada
@@ -227,10 +214,8 @@ async function interpretQuery(query) {
             adjustedVector[i] = queryVector.data[i];
           }
           queryVectorFloat = adjustedVector;
-        } else {
-          // Fallback: crear vector con dimensión esperada
-          queryVectorFloat = new Float32Array(expectedDimension).fill(0.1);
         }
+        
         // Preparar entrada para el modelo
         const inputTensor = new ort.Tensor('float32', queryVectorFloat, [1, expectedDimension]);
         const feeds = { [interpreterSession.inputNames[0]]: inputTensor };
@@ -258,12 +243,15 @@ async function interpretQuery(query) {
           confidence,
           confidence_str: confidence.toFixed(4),
           probabilities: probabilities.map((p, i) => ({ id: i, probability: p })),
-          using_model: true
+          using_model: true,
+          model_version: VERSION
         };
       } catch (inferenceError) {
-        console.error('Error en inferencia, usando lógica simulada:', inferenceError);
+        console.error('❌ Error en inferencia ONNX:', inferenceError.message);
         // Si falla la inferencia, caemos en la simulación
       }
+    } else if (interpreterSession && !tfidf.isValidVectorizer(interpreterVectorizer)) {
+      console.log('⚠️ Modelo ONNX disponible pero vectorizador inválido');
     }
 
     // SIMULACIÓN si no tenemos modelo o falló la inferencia

@@ -41,6 +41,8 @@ source venv_pohapp/bin/activate
 pip install joblib scikit-learn numpy
 ```
 
+> **Nota:** El proyecto usa exclusivamente `venv_pohapp` como entorno virtual. Si existe un folder `venv` antiguo, puede eliminarse de forma segura.
+
 4. Configurar variables de entorno:
 
 ```bash
