@@ -1,7 +1,7 @@
 /**
  * Script extremadamente simple para probar modelos
  */
-const validators = require('./src/utils/validators');
+const validators = require('../src/utils/validators');
 
 async function testInitModels() {
   try {

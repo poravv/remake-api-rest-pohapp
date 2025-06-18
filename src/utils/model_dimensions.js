@@ -5,6 +5,10 @@
 
 module.exports = {
   VERSION: 'v20250504',
+  validation: {
+    inputDimension: 100,  // Dimensión esperada por el modelo de validación
+    outputClasses: 2      // válido/no válido
+  },
   interpreter: {
     inputDimension: 51,  // Dimensión esperada por el modelo según error observado
     categories: [

@@ -23,7 +23,7 @@ const verificarModelos = async () => {
     console.error('Error al verificar modelos de IA:', error);
     return {
       error: error.message,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
   }
 };
@@ -47,13 +47,13 @@ const diagnosticoCompleto = async () => {
       directorio: modelosDir,
       ambiente: process.env.NODE_ENV || 'development',
       version: process.env.MODEL_VERSION || 'default',
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
   } catch (error) {
     console.error('Error al generar diagnóstico de IA:', error);
     return {
       error: error.message,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
   }
 };

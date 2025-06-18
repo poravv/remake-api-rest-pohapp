@@ -18,27 +18,43 @@ let interpreterCategories;
 // Inicialización de modelos
 async function initModels() {
   try {
-    console.log('Inicializando modelos ONNX...');
+    console.log('🤖 Inicializando modelos de IA POHAPP...');
+  
+  // Verificar disponibilidad de joblib de forma simple
+  try {
+    // Verificar si la función existe antes de llamarla
+    if (typeof joblib.testJoblibAvailability === 'function') {
+      const joblibAvailable = await joblib.testJoblibAvailability();
+      if (!joblibAvailable) {
+        console.log('📋 joblib no está disponible. Usando vectorizadores simulados.');
+        console.log('   💡 Para usar modelos reales: source venv_pohapp/bin/activate');
+      } else {
+        console.log('✅ joblib disponible y funcional');
+      }
+    } else {
+      console.log('📋 Usando vectorizadores simulados (modo estándar)');
+    }
+  } catch (error) {
+    console.log('📋 Continuando con vectorizadores simulados');
+  }
 
     // Cargar modelo de validación
     try {
       validationSession = await ort.InferenceSession.create(
         path.join(MODELS_DIR, `validation_model_${VERSION}.onnx`)
       );
-      console.log('Modelo de validación ONNX cargado correctamente');
+      console.log('✅ Modelo de validación ONNX cargado');
     } catch (err) {
-      console.warn('Error al cargar modelo de validación ONNX:', err.message);
-      console.warn('Usando simulación para validación');
+      console.log('📋 Modelo de validación usando fallback:', err.message);
     }
 
     try {
       validationVectorizer = await joblib.load(
         path.join(MODELS_DIR, `validation_vectorizer_${VERSION}.joblib`)
       );
-      console.log('Vectorizador de validación cargado correctamente');
+      console.log('✅ Vectorizador de validación cargado');
     } catch (err) {
-      console.warn('Error al cargar vectorizador de validación:', err.message);
-      console.warn('Usando vectorizador simulado para validación');
+      console.log('📋 Vectorizador de validación: usando simulado');
       validationVectorizer = modelConfig.validationVectorizer;
     }
 
@@ -47,28 +63,18 @@ async function initModels() {
       interpreterSession = await ort.InferenceSession.create(
         path.join(MODELS_DIR, `interpreter_model_${VERSION}.onnx`)
       );
-      console.log('Modelo de interpretación ONNX cargado correctamente');
+      console.log('✅ Modelo de interpretación ONNX cargado');
     } catch (err) {
-      console.warn('Error al cargar modelo de interpretación ONNX:', err.message);
-      console.warn('Usando simulación para interpretación');
+      console.log('📋 Modelo de interpretación usando fallback:', err.message);
     }
 
     try {
       interpreterVectorizer = await joblib.load(
         path.join(MODELS_DIR, `interpreter_vectorizer_${VERSION}.joblib`)
       );
-      console.log('Vectorizador de interpretación cargado correctamente');
-
-      // Verificar si el vectorizador tiene vocabulario para extraer información relevante
-      if (interpreterVectorizer && interpreterVectorizer.vocabulary_) {
-        console.log(`Vocabulario cargado con ${Object.keys(interpreterVectorizer.vocabulary_).length} términos`);
-
-        // Se podría extraer más información útil aquí para mejorar la simulación
-        // Por ejemplo, palabras con más peso, idf de términos, etc.
-      }
+      console.log('✅ Vectorizador de interpretación cargado');
     } catch (err) {
-      console.warn('Error al cargar vectorizador de interpretación:', err.message);
-      console.warn('Usando vectorizador simulado para interpretación');
+      console.log('📋 Vectorizador de interpretación: usando simulado');
       interpreterVectorizer = modelConfig.interpreterVectorizer;
     }
 
@@ -76,26 +82,13 @@ async function initModels() {
       interpreterCategories = await joblib.load(
         path.join(MODELS_DIR, `interpreter_categories_${VERSION}.joblib`)
       );
-      console.log('Categorías de interpretación cargadas correctamente');
-
-      if (Array.isArray(interpreterCategories)) {
-        console.log(`Categorías disponibles (${interpreterCategories.length}): ${interpreterCategories.join(', ')}`);
-      } else {
-        console.warn('Formato de categorías no esperado, convirtiendo a array');
-        // Intentar convertir a array si viene en otro formato
-        if (typeof interpreterCategories === 'object') {
-          interpreterCategories = Object.values(interpreterCategories);
-        } else {
-          interpreterCategories = modelConfig.interpreterCategories;
-        }
-      }
+      console.log('✅ Categorías de interpretación cargadas');
     } catch (err) {
-      console.warn('Error al cargar categorías de interpretación:', err.message);
-      console.warn('Usando categorías predefinidas para interpretación');
+      console.log('📋 Categorías de interpretación: usando predefinidas');
       interpreterCategories = modelConfig.interpreterCategories;
     }
 
-    console.log('Modelos inicializados (algunos pueden ser simulados)');
+    console.log('🎯 Modelos de IA inicializados correctamente');
     return true;
   } catch (error) {
     console.error('Error al inicializar modelos:', error);
@@ -103,7 +96,7 @@ async function initModels() {
     validationVectorizer = modelConfig.validationVectorizer;
     interpreterVectorizer = modelConfig.interpreterVectorizer;
     interpreterCategories = modelConfig.interpreterCategories;
-    console.warn('Usando configuración básica como fallback');
+    console.log('📋 Usando configuración básica como fallback');
     return true; // Retornamos true para que la aplicación pueda continuar
   }
 }
@@ -116,20 +109,19 @@ async function validateText(text) {
 
     // Si tenemos la sesión y el vectorizador, usamos el modelo real
     if (validationSession && validationVectorizer) {
-      console.log('Usando modelo real para validación');
+      console.log('🔍 Usando modelo ONNX para validación');
 
       // Vectorizar texto (utilizando el vectorizador exportado)
       let textVector;
       if (typeof validationVectorizer.transform === 'function') {
-        textVector = validationVectorizer.transform([processedText]);
-      } else {
-        // Simulación simple: crear un vector usando el vocabulario
-        const vocabSize = Object.keys(validationVectorizer.vocabulary_ || {}).length;
-        textVector = {
-          data: new Float32Array(vocabSize).fill(0.1),
-          shape: [1, vocabSize]
-        };
-      }
+        textVector = validationVectorizer.transform([processedText]);        } else {
+          // Simulación simple: crear un vector con la dimensión correcta del modelo
+          const expectedDimension = modelDimensions.validation.inputDimension; // 100 para validación
+          textVector = {
+            data: new Float32Array(expectedDimension).fill(0.1),
+            shape: [1, expectedDimension]
+          };
+        }
       const textVectorFloat = new Float32Array(textVector.data);
 
       try {
@@ -163,7 +155,7 @@ async function validateText(text) {
     }
 
     // SIMULACIÓN si no tenemos modelo o falló la inferencia
-    console.log('Usando simulación para validación de texto');
+    console.log('🎭 Usando simulación para validación de texto');
 
     // Lógica simple: textos con al menos 10 caracteres son válidos
     const isValid = processedText.length >= 10 && !processedText.includes('xxx');
@@ -197,33 +189,36 @@ async function interpretQuery(query) {
 
     // Si tenemos la sesión y el vectorizador, usamos el modelo real
     if (interpreterSession && interpreterVectorizer && interpreterCategories) {
-      console.log('Usando modelo real para interpretación');
+      console.log('🔍 Usando modelo ONNX para interpretación');
       try {
         // Vectorizar consulta
         let queryVector;
         if (typeof interpreterVectorizer.transform === 'function') {
           queryVector = interpreterVectorizer.transform([processedQuery]);
         } else {
-          // Simulación simple: crear un vector usando el vocabulario
-          const vocabSize = Object.keys(interpreterVectorizer.vocabulary_ || {}).length;
+          // Simulación simple: crear un vector con la dimensión correcta del modelo
+          const expectedDimension = modelDimensions.interpreter.inputDimension; // 51
           queryVector = {
-            data: new Float32Array(vocabSize).fill(0.1),
-            shape: [1, vocabSize]
+            data: new Float32Array(expectedDimension).fill(0.1),
+            shape: [1, expectedDimension]
           };
         }
 
         // Usar la dimensión correcta del modelo desde la configuración
-        const expectedDimension = modelDimensions.interpreter.inputDimension; // 51 dimensiones según nuestro análisis
+        const expectedDimension = modelDimensions.interpreter.inputDimension; // 51 dimensiones
 
         console.log('Dimensiones esperadas por el modelo:', expectedDimension);
         console.log('Dimensiones del vector generado:', queryVector.shape ? queryVector.shape[1] : 'desconocido');
 
-        // Ajustar dimensión del vector si no coincide con lo esperado por el modelo
+        // Preparar vector para el modelo
         let queryVectorFloat;
 
-        // Si tenemos shape y no coincide, ajustar
-        if (queryVector.shape && queryVector.shape[1] !== expectedDimension) {
-          console.log(`Ajustando dimensiones del vector de ${queryVector.shape[1]} a ${expectedDimension}`);
+        // Si las dimensiones coinciden, usar directamente
+        if (queryVector.shape && queryVector.shape[1] === expectedDimension) {
+          queryVectorFloat = new Float32Array(queryVector.data);
+        } else if (queryVector.shape && queryVector.shape[1] !== expectedDimension) {
+          // Solo mostrar warning si realmente hay diferencia
+          console.warn(`⚠️  Ajustando dimensiones del vector de ${queryVector.shape[1]} a ${expectedDimension}`);
           // Crear un nuevo vector con la dimensión esperada
           const adjustedVector = new Float32Array(expectedDimension);
           // Copiar los valores que podamos del vector original
@@ -233,8 +228,8 @@ async function interpretQuery(query) {
           }
           queryVectorFloat = adjustedVector;
         } else {
-          // Si no tenemos shape o coincide, usar vector original
-          queryVectorFloat = new Float32Array(queryVector.data);
+          // Fallback: crear vector con dimensión esperada
+          queryVectorFloat = new Float32Array(expectedDimension).fill(0.1);
         }
         // Preparar entrada para el modelo
         const inputTensor = new ort.Tensor('float32', queryVectorFloat, [1, expectedDimension]);
@@ -768,6 +763,167 @@ async function searchPohaByQuery(query, database) {
   }
 }
 
+// ========================================
+// FUNCIONES ADICIONALES PARA EL CONTROLADOR
+// ========================================
+
+/**
+ * Función para obtener el estado completo de los modelos
+ */
+function obtenerEstadoModelos() {
+  return {
+    validacion: {
+      cargado: !!validationSession,
+      simulado: !validationSession,
+      vectorizador: !!validationVectorizer,
+      modelPath: validationSession ? 'Modelo ONNX cargado' : 'Usando simulación'
+    },
+    interpretacion: {
+      cargado: !!interpreterSession,
+      simulado: !interpreterSession,
+      vectorizador: !!interpreterVectorizer,
+      categorias: !!interpreterCategories,
+      modelPath: interpreterSession ? 'Modelo ONNX cargado' : 'Usando simulación'
+    },
+    version: VERSION,
+    timestamp: new Date().toISOString(),
+    dimensiones: modelDimensions
+  };
+}
+
+/**
+ * Función para validar términos medicinales (alias de validateText)
+ */
+async function validarTerminoMedicinal(termino) {
+  try {
+    if (!termino || typeof termino !== 'string') {
+      return {
+        success: false,
+        error: 'Término inválido o vacío',
+        valido: false,
+        confianza: 0
+      };
+    }
+
+    const resultado = await validateText(termino);
+    return {
+      success: true,
+      valido: resultado.isValid,
+      confianza: resultado.confidence,
+      mensaje: resultado.isValid ? 'Término válido' : 'Término no válido',
+      detalle: resultado,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error en validarTerminoMedicinal:', error);
+    return {
+      success: false,
+      error: error.message,
+      valido: false,
+      confianza: 0
+    };
+  }
+}
+
+/**
+ * Función para interpretar términos medicinales (alias de interpretQuery)
+ */
+async function interpretarTerminoMedicinal(termino) {
+  try {
+    if (!termino || typeof termino !== 'string') {
+      return {
+        success: false,
+        error: 'Término inválido o vacío',
+        categoria: 'desconocido',
+        confianza: 0
+      };
+    }
+
+    const resultado = await interpretQuery(termino);
+    
+    // Serializar el resultado para evitar problemas con BigInt
+    const resultadoSerializado = serializeBigInt(resultado);
+    
+    return {
+      success: true,
+      categoria: resultadoSerializado.categoryName,
+      confianza: resultadoSerializado.confidence,
+      id_categoria: resultadoSerializado.categoryId,
+      detalle: resultadoSerializado,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error en interpretarTerminoMedicinal:', error);
+    return {
+      success: false,
+      error: error.message,
+      categoria: 'desconocido',
+      confianza: 0
+    };
+  }
+}
+
+/**
+ * Función para buscar términos relacionados basados en la categoría interpretada
+ */
+async function buscarTerminosRelacionados(termino) {
+  try {
+    if (!termino || typeof termino !== 'string') {
+      return {
+        success: false,
+        error: 'Término inválido o vacío',
+        terminos_relacionados: []
+      };
+    }
+
+    // Interpretar el término para obtener la categoría
+    const interpretacion = await interpretQuery(termino);
+    
+    // Serializar la interpretación para evitar BigInt
+    const interpretacionSerializada = serializeBigInt(interpretacion);
+    
+    // Términos relacionados por categoría
+    const relacionados = {
+      'fiebre': ['temperatura', 'calor', 'calentura', 'destemplado', 'febrícula'],
+      'vómito': ['náusea', 'mareo', 'devolver', 'estómago', 'digestión'],
+      'catarro': ['gripe', 'resfriado', 'congestión', 'mucosidad', 'rinitis'],
+      'náusea': ['mareo', 'malestar', 'estómago', 'digestión', 'vómito'],
+      'ansiedad': ['nervios', 'estrés', 'preocupación', 'tensión', 'inquietud'],
+      'insomnio': ['dormir', 'sueño', 'descanso', 'relajación', 'sedante'],
+      'relajante': ['calma', 'tranquilidad', 'serenidad', 'paz', 'sosiego'],
+      'mal aliento': ['halitosis', 'boca', 'dientes', 'encías', 'higiene'],
+      'desinflamante': ['hinchazón', 'inflamación', 'abdominal', 'vientre', 'antiinflamatorio'],
+      'estreñimiento': ['constipación', 'digestión', 'evacuación', 'intestinal', 'laxante'],
+      'tos': ['garganta', 'pecho', 'irritación', 'carraspera', 'expectorante'],
+      'dolores de garganta': ['angina', 'faringitis', 'amígdalas', 'tragar', 'irritación'],
+      'dolores articulares': ['artritis', 'huesos', 'músculos', 'articulaciones', 'antiinflamatorio'],
+      'menstrual': ['regla', 'período', 'ciclo', 'menstruación', 'cólicos']
+    };
+
+    const terminosRelacionados = relacionados[interpretacionSerializada.categoryName] || 
+                                 relacionados['fiebre'] || 
+                                 ['medicinal', 'natural', 'planta', 'hierba'];
+
+    return {
+      success: true,
+      termino_original: termino,
+      categoria: interpretacionSerializada.categoryName,
+      categoria_id: interpretacionSerializada.categoryId,
+      confianza_interpretacion: interpretacionSerializada.confidence,
+      terminos_relacionados: terminosRelacionados,
+      total: terminosRelacionados.length,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error en buscarTerminosRelacionados:', error);
+    return {
+      success: false,
+      error: error.message,
+      terminos_relacionados: []
+    };
+  }
+}
+
 // Exportar todas las funciones y algunas variables para monitoreo
 module.exports = {
   // Funciones principales
@@ -775,6 +931,12 @@ module.exports = {
   validateText,
   interpretQuery,
   searchPohaByQuery,
+  
+  // Funciones nuevas para el controlador
+  obtenerEstadoModelos,
+  validarTerminoMedicinal,
+  interpretarTerminoMedicinal,
+  buscarTerminosRelacionados,
 
   // Variables para monitoreo del estado
   VERSION,

@@ -9,7 +9,7 @@ const sequelize = new Sequelize(
         dialect: "mysql",
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT || 3306,
-        logging: process.env.NODE_ENV !== 'production',
+        logging: process.env.NODE_ENV !== 'production' ? console.log : false,
         define: {
             timestamps: false
         }

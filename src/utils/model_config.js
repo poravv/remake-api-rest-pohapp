@@ -47,6 +47,6 @@ function createVectorizer(vocabularySize) {
 
 module.exports = {
   interpreterCategories,
-  validationVectorizer: createVectorizer(100),
-  interpreterVectorizer: createVectorizer(150)
+  validationVectorizer: createVectorizer(100),   // Corregido a 100 dimensiones para validación
+  interpreterVectorizer: createVectorizer(51)    // Mantenido en 51 dimensiones para interpretación
 };

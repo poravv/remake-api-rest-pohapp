@@ -9,18 +9,21 @@ const iaHelpers = require('../utils/iaHelpers');
  */
 const validarTermino = async (req, res, next) => {
   try {
-    const { termino } = req.body;
+    const { termino, texto } = req.body;
 
-    if (!termino) {
+    // Aceptar tanto 'termino' como 'texto' para compatibilidad
+    const textoAValidar = termino || texto;
+
+    if (!textoAValidar) {
       return res.status(400).json({ 
-        error: 'Se requiere un término para validar' 
+        error: 'Se requiere un término o texto para validar' 
       });
     }
 
     // Verificar que los modelos estén cargados
     await iaHelpers.verificarModelos();
     
-    const resultado = await validators.validarTerminoMedicinal(termino);
+    const resultado = await validators.validarTerminoMedicinal(textoAValidar);
     res.json(resultado);
   } catch (error) {
     next(error);
@@ -32,18 +35,21 @@ const validarTermino = async (req, res, next) => {
  */
 const interpretarTermino = async (req, res, next) => {
   try {
-    const { termino } = req.body;
+    const { termino, consulta } = req.body;
 
-    if (!termino) {
+    // Aceptar tanto 'termino' como 'consulta' para compatibilidad
+    const textoAInterpretar = termino || consulta;
+
+    if (!textoAInterpretar) {
       return res.status(400).json({ 
-        error: 'Se requiere un término para interpretar' 
+        error: 'Se requiere un término o consulta para interpretar' 
       });
     }
 
     // Verificar que los modelos estén cargados
     await iaHelpers.verificarModelos();
     
-    const resultado = await validators.interpretarTerminoMedicinal(termino);
+    const resultado = await validators.interpretarTerminoMedicinal(textoAInterpretar);
     res.json(resultado);
   } catch (error) {
     next(error);
