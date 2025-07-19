@@ -9,6 +9,9 @@ const puntos = require('./routes/ruta_puntos');
 const dp = require('./routes/ruta_dolencias_poha');
 const pp = require('./routes/ruta_poha_planta');
 const medicinales = require('./routes/ruta_medicinales');
+const queryNLPExplica = require('./routes/queryNLPExplica');
+const queryNlpRoute = require('./routes/queryNLP');
+const chatHistorial = require('./routes/chatHistorial');
 
 
 try {
@@ -21,6 +24,9 @@ try {
     routes.use('/api/pohapp/dp',dp)
     routes.use('/api/pohapp/pp',pp)
     routes.use('/api/pohapp/medicinales',medicinales)
+    routes.use(`/api/pohapp/query-nlp/explica`, queryNLPExplica);
+    routes.use(`/api/pohapp/query-nlp/preview`, queryNlpRoute);
+    routes.use(`/api/pohapp/chat/historial`, chatHistorial);
 } catch (error) {
     console.log(`Algo salió mal ${error}`);
     //res.json({state:"error",message:"ruta incorrecta"});
