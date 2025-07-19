@@ -6,21 +6,15 @@ const cors = require('cors');
 const config = require('./config/config');
 const { notFound, errorHandler } = require('./middlewares/errorMiddleware');
 
+
 // Importación del enrutador principal
 const routes = require('./routes/index');
 
-// Inicializar modelos de IA al arrancar la aplicación
-const { initModels } = require('./utils/validators');
-console.log('🚀 Inicializando modelos de IA al arrancar la aplicación...');
-initModels().then(() => {
-    console.log('🎯 Modelos de IA listos para usar');
-}).catch(error => {
-    console.error('❌ Error al inicializar modelos de IA:', error.message);
-    console.log('📋 La aplicación continuará con simulaciones');
-});
 
 // Inicialización de la aplicación Express
 const app = express();
+app.use(express.json());
+
 
 // Configuración de CORS
 if (process.env.NODE_ENV === 'production') {
@@ -50,7 +44,6 @@ app.get('/api/status', (_req, res) => {
 
 // Configuración de rutas API centralizadas
 app.use(routes);
-
 // Middleware para manejar rutas no encontradas
 app.use(notFound);
 

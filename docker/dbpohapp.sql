@@ -19,6 +19,8 @@
 -- Table structure for table `autor`
 --
 
+
+
 DROP TABLE IF EXISTS `autor`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -375,3 +377,9 @@ WHERE
     p.estado = 'AC'
 GROUP BY 
     p.idpoha, p.preparado, p.recomendacion;
+
+CREATE TABLE medicina_embeddings (
+  idpoha INT PRIMARY KEY,
+  resumen TEXT,
+  embedding JSON
+);
