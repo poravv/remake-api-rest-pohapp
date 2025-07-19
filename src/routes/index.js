@@ -16,6 +16,7 @@ const dolenciasRoutes = require('./dolenciasRoutes');
 const medicinalesRoutes = require('./medicinalesRoutes');
 const queryNLPExplica = require('./queryNLPExplica');
 const queryNlpRoute = require('./queryNLP');
+const chatHistorial = require('./chatHistorial');
 
 // Definir prefijo base para las rutas API
 const API_PREFIX = '/api/pohapp';
@@ -31,6 +32,7 @@ router.use(`${API_PREFIX}/poha_planta`, poha_plantaRoutes);
 router.use(`${API_PREFIX}/usuario`, usuarioRoutes);
 router.use(`${API_PREFIX}/dolencias`, dolenciasRoutes);
 router.use(`${API_PREFIX}/medicinales`, medicinalesRoutes);
-router.use('/query-nlp/explica', queryNLPExplica);
-router.use('/query-nlp', queryNlpRoute);
+router.use(`${API_PREFIX}/query-nlp/explica`, queryNLPExplica);
+router.use(`${API_PREFIX}/query-nlp/preview`, queryNlpRoute);
+router.use(`${API_PREFIX}/chat/historial`, chatHistorial);
 module.exports = router;

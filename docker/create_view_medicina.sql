@@ -1,3 +1,10 @@
+CREATE TABLE medicina_embeddings (
+  idpoha INT PRIMARY KEY,
+  resumen TEXT,
+  embedding JSON
+);
+
+
 CREATE OR REPLACE VIEW vw_medicina_entrenamiento AS
 SELECT 
     p.idpoha,
@@ -53,3 +60,14 @@ LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha AND p.idusuario = pp.idusuario
 LEFT JOIN planta pl ON pl.idplanta = pp.idplanta
 WHERE p.estado = 'AC'
 GROUP BY p.idpoha;
+
+
+CREATE TABLE chat_historial (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  idusuario VARCHAR(200) NOT NULL,
+  pregunta TEXT,
+  respuesta TEXT,
+  fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+  idpoha_json JSON,
+  imagenes_json JSON
+);
