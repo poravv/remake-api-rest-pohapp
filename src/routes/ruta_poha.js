@@ -7,6 +7,9 @@ const autor = require('../model/autor');
 const planta = require('../model/planta');
 const dolencias = require('../model/dolencias');
 const { Op } = require('sequelize');
+const { OpenAI } = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const sequelize = require('../database');
 
 ruta.get('/count/', async (req, res) => {
     await poha.count().then((response) => {
@@ -140,24 +143,72 @@ ruta.get('/get/:idpoha', async (req, res) => {
 })
 
 ruta.post('/post/', async (req, res) => {
-    console.log('Entra en post');
-    console.log(req.body);
     try {
-        await poha.create(req.body).then((response) => {
+        // 1. Guardar poha
+        const nuevoPoha = await poha.create(req.body);
 
-            console.log(response)
+        // 2. Esperar a que se actualicen las vistas, o volver a consultar los datos enriquecidos
+        const [datos] = await sequelize.query(`
+        SELECT p.idpoha, CONCAT_WS('. ',
+            CONCAT('Esta preparación es útil para tratar: ', GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ')),
+            CONCAT('Modo de preparación sugerido: ', MAX(p.preparado)),
+            CONCAT('Precauciones: ', IFNULL(MAX(p.recomendacion), 'Ninguna advertencia importante.')),
+            CONCAT('Esta mezcla contiene las siguientes plantas: ',
+                GROUP_CONCAT(
+                    DISTINCT CONCAT(pl.nombre, ' (', pl.nombre_cientifico, ', familia ', pl.familia, ')')
+                )
+            ),
+            CONCAT('Detalles adicionales de cada planta: ',
+                GROUP_CONCAT(
+                    DISTINCT CONCAT_WS('. ',
+                        pl.nombre,
+                        pl.descripcion,
+                        CONCAT('Hábitat: ', pl.habitad_distribucion),
+                        CONCAT('Ciclo de vida: ', pl.ciclo_vida)
+                    )
+                )
+            )
+        ) AS texto_entrenamiento
+        FROM poha p
+        LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
+        LEFT JOIN dolencias d ON d.iddolencias = dp.iddolencias
+        LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha
+        LEFT JOIN planta pl ON pl.idplanta = pp.idplanta
+        WHERE p.idpoha = ?
+        GROUP BY p.idpoha
+        `, { replacements: [nuevoPoha.idpoha] });
 
-            res.json(response);
-        }).catch((error) => {
-            console.log(`Algo salió mal ${error}`);
+
+        const textoEntrenamiento = datos[0]?.texto_entrenamiento;
+
+        if (!textoEntrenamiento) {
+            return res.status(400).json({ error: 'No se pudo generar texto de entrenamiento.' });
+        }
+
+        // 3. Crear embedding
+        const embeddingResponse = await openai.embeddings.create({
+            model: 'text-embedding-3-small',
+            input: textoEntrenamiento,
         });
 
-    } catch (error) {
-        console.error(error);
-        console.log(`Algo salió mal ${error}`);
+        const embedding = embeddingResponse.data[0].embedding;
 
+        // 4. Guardar en medicina_embeddings
+        await sequelize.query(`
+        INSERT INTO medicina_embeddings (idpoha, resumen, embedding)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE resumen = VALUES(resumen), embedding = VALUES(embedding)
+        `, {
+                replacements: [nuevoPoha.idpoha, textoEntrenamiento, JSON.stringify(embedding)],
+            });
+
+        res.json({ ...nuevoPoha.toJSON(), embeddingGuardado: true });
+
+    } catch (error) {
+        console.error('❌ Error al guardar poha con embedding:', error);
+        res.status(500).json({ error: 'Error interno al guardar poha y generar embedding' });
     }
-})
+});
 
 ruta.put('/put/:idpoha', async (req, res) => {
     await poha.update(req.body, { where: { idpoha: req.params.idpoha } }).then((response) => {
@@ -169,7 +220,7 @@ ruta.put('/put/:idpoha', async (req, res) => {
 })
 
 ruta.delete('/delete/:idpoha', async (req, res) => {
-    
+
     await poha_planta.destroy({
         where: {
             idpoha: req.params.idpoha,
