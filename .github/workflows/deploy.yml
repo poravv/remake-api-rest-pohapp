@@ -179,7 +179,7 @@ jobs:
           kubectl set image deployment/pohapp-backend \
             pohapp-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA} \
             -n ${{ env.NAMESPACE }}
-          kubectl rollout status deployment/pohapp-backend -n ${{ env.NAMESPACE }} --timeout=300s
+          kubectl rollout status deployment/pohapp-backend -n ${{ env.NAMESPACE }} --timeout=600s
 
       - name: Backend health check (ClusterIP)
         run: |
