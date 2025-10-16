@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pohapp-backend-config
+  namespace: pohapp-backend
+data:
+  # Database Configuration
+  MYSQL_DB: "db-pohapp"
+  MYSQL_HOST: "mysql-service"
+  MYSQL_PORT: "3306"
+  
+  # Application Configuration
+  APP_NAME: "Pohapp Backend API"
+  API_VERSION: "v1.0.0"
+  
+  # Model Configuration
+  MODEL_VERSION: "v20250504"
