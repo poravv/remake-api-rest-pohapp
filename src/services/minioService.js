@@ -8,6 +8,7 @@ const minioClient = new Minio.Client({
   accessKey: process.env.MINIO_ACCESS_KEY || '',
   secretKey: process.env.MINIO_SECRET_KEY || '',
   region: process.env.MINIO_REGION || 'py-east-1',
+  pathStyle: true,  // Usar path-style URLs en lugar de virtual-hosted
 });
 
 const bucketName = process.env.MINIO_BUCKET_NAME || 'bucket-pohapp';
@@ -16,6 +17,7 @@ console.log('🔧 MinIO Client configurado:');
 console.log('   - Endpoint:', process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net');
 console.log('   - Bucket:', bucketName);
 console.log('   - Region:', process.env.MINIO_REGION || 'py-east-1');
+console.log('   - PathStyle: true');
 
 /**
  * Genera una URL firmada (presigned) para acceder a una imagen privada
