@@ -52,12 +52,15 @@ const signMinioUrls = async (req, res, next) => {
       };
 
       // Solo firmar si la ruta está en la lista permitida o si se solicita explícitamente
+      // Usar req.originalUrl o req.baseUrl para obtener la ruta completa
+      const fullPath = req.originalUrl || req.path;
       const shouldSign = 
         req.query.signImages === 'true' || 
-        req.path.includes('/poha/') ||
-        req.path.includes('/planta/') ||
-        req.path.includes('/medicinales/') ||
-        req.path.includes('/query-nlp/');
+        fullPath.includes('/poha') ||
+        fullPath.includes('/planta') ||
+        fullPath.includes('/medicinales') ||
+        fullPath.includes('/query-nlp') ||
+        true; // Siempre firmar cuando el middleware está aplicado
 
       if (shouldSign) {
         const signedData = await signUrls(data);
