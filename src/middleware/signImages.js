@@ -14,25 +14,31 @@ const signMinioUrls = async (req, res, next) => {
 
   res.json = async function (data) {
     try {
+      // Limpiar referencias circulares de Sequelize antes de procesar
+      // Esto convierte el objeto a JSON puro eliminando propiedades internas
+      let cleanData;
+      try {
+        cleanData = JSON.parse(JSON.stringify(data));
+      } catch (error) {
+        console.error('⚠️ No se pudo limpiar referencias circulares, usando data original');
+        cleanData = data;
+      }
+
       // Contador para debugging
       let urlsFound = 0;
       let urlsSigned = 0;
       let urlsFailed = 0;
 
       // Función recursiva para firmar URLs en objetos anidados
-      const signUrls = async (obj, depth = 0, visited = new WeakSet()) => {
+      const signUrls = async (obj, depth = 0) => {
         // Limitar profundidad para evitar loops infinitos
         if (depth > 10 || !obj || typeof obj !== 'object') return obj;
-        
-        // Evitar referencias circulares
-        if (visited.has(obj)) return obj;
-        visited.add(obj);
 
         // Si es un array, procesar cada elemento
         if (Array.isArray(obj)) {
           const results = [];
           for (const item of obj) {
-            results.push(await signUrls(item, depth + 1, visited));
+            results.push(await signUrls(item, depth + 1));
           }
           return results;
         }
@@ -74,9 +80,8 @@ const signMinioUrls = async (req, res, next) => {
           const value = newObj[key];
           if (value && typeof value === 'object' && 
               !(value instanceof Date) && 
-              !(value instanceof Buffer) &&
-              !visited.has(value)) {
-            newObj[key] = await signUrls(value, depth + 1, visited);
+              !(value instanceof Buffer)) {
+            newObj[key] = await signUrls(value, depth + 1);
           }
         }
 
@@ -87,7 +92,7 @@ const signMinioUrls = async (req, res, next) => {
       const startTime = Date.now();
 
       // Timeout global de 10 segundos para todo el proceso de firma
-      const signPromise = signUrls(data);
+      const signPromise = signUrls(cleanData);
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Timeout global')), 10000)
       );
@@ -100,8 +105,14 @@ const signMinioUrls = async (req, res, next) => {
       return originalJson(signedData);
     } catch (error) {
       console.error(`❌ Error crítico en middleware signMinioUrls: ${error.message}`);
-      // Si hay error, devolver data sin firmar
-      return originalJson(data);
+      // Si hay error, devolver data sin firmar pero limpia
+      try {
+        const cleanData = JSON.parse(JSON.stringify(data));
+        return originalJson(cleanData);
+      } catch (jsonError) {
+        // Si falla la limpieza, devolver data original
+        return originalJson(data);
+      }
     }
   };
 
