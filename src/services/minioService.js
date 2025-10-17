@@ -2,7 +2,7 @@ const Minio = require('minio');
 
 // Configuración del cliente MinIO
 const minioClient = new Minio.Client({
-  endPoint: process.env.MINIO_HOST || 'minio.mindtechpy.net',
+  endPoint: process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net',
   port: 443,
   useSSL: true,
   accessKey: process.env.MINIO_ACCESS_KEY || '',
@@ -11,6 +11,11 @@ const minioClient = new Minio.Client({
 });
 
 const bucketName = process.env.MINIO_BUCKET_NAME || 'bucket-pohapp';
+
+console.log('🔧 MinIO Client configurado:');
+console.log('   - Endpoint:', process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net');
+console.log('   - Bucket:', bucketName);
+console.log('   - Region:', process.env.MINIO_REGION || 'py-east-1');
 
 /**
  * Genera una URL firmada (presigned) para acceder a una imagen privada
