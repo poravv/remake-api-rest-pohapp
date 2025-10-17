@@ -26,11 +26,43 @@ conecta();
 app.use(express.urlencoded({ limit: '50mb', extended: false }));
 app.use(express.json({ limit: '50mb', extended: true, parameterLimit: 500000 }));
 
-app.use(rutas)
-
+// Health check endpoints (deben estar ANTES de las rutas)
 app.get('/', (_req, res) => {
-    res.send("Api rest Poha ÑanApp")
+    res.status(200).json({ 
+        status: 'ok', 
+        message: 'Api rest Poha ÑanApp',
+        timestamp: new Date().toISOString()
+    })
 })
+
+app.get('/health', (_req, res) => {
+    res.status(200).json({ 
+        status: 'ok',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    })
+})
+
+app.get('/readiness', (_req, res) => {
+    // Verificar conexión a la base de datos
+    database.authenticate()
+        .then(() => {
+            res.status(200).json({ 
+                status: 'ready',
+                database: 'connected',
+                timestamp: new Date().toISOString()
+            })
+        })
+        .catch((error) => {
+            res.status(503).json({ 
+                status: 'not ready',
+                database: 'disconnected',
+                error: error.message
+            })
+        })
+})
+
+app.use(rutas)
 
 app.listen(port, () => {
     console.log("App corriendo en el puerto: ", port)
