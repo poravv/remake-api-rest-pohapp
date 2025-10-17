@@ -48,29 +48,49 @@ const signMinioUrls = async (req, res, next) => {
         const newObj = { ...obj };
 
         for (const field of imageFields) {
-          if (newObj[field] && typeof newObj[field] === 'string' && isMinioUrl(newObj[field])) {
-            urlsFound++;
-            try {
-              const objectName = extractObjectName(newObj[field]);
-              
-              // Timeout de 3 segundos para la firma
-              const signPromise = getPresignedUrl(objectName, 86400);
-              const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 3000)
-              );
-              
-              const signedUrl = await Promise.race([signPromise, timeoutPromise]);
-              
-              // Agregar tanto la URL original como la firmada
-              newObj[`${field}_original`] = newObj[field];
-              newObj[field] = signedUrl;
-              newObj[`${field}_signed`] = signedUrl;
-              newObj[`${field}_expires_in`] = 86400;
-              urlsSigned++;
-            } catch (error) {
-              urlsFailed++;
-              console.error(`❌ Error firmando URL: ${newObj[field]} - ${error.message}`);
-              // Mantener la URL original si falla
+          if (newObj[field] && typeof newObj[field] === 'string') {
+            const fieldValue = newObj[field];
+            
+            // Caso 1: Es una URL completa de MinIO -> Firmar
+            if (isMinioUrl(fieldValue)) {
+              urlsFound++;
+              try {
+                const objectName = extractObjectName(fieldValue);
+                const signPromise = getPresignedUrl(objectName, 86400);
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 3000)
+                );
+                const signedUrl = await Promise.race([signPromise, timeoutPromise]);
+                
+                newObj[`${field}_original`] = fieldValue;
+                newObj[field] = signedUrl;
+                newObj[`${field}_signed`] = signedUrl;
+                newObj[`${field}_expires_in`] = 86400;
+                urlsSigned++;
+              } catch (error) {
+                urlsFailed++;
+                console.error(`❌ Error firmando URL: ${fieldValue} - ${error.message}`);
+              }
+            }
+            // Caso 2: Es solo un nombre de archivo (sin http/https) -> Generar URL firmada
+            else if (fieldValue && !fieldValue.startsWith('http') && fieldValue.trim().length > 0) {
+              urlsFound++;
+              try {
+                const signPromise = getPresignedUrl(fieldValue, 86400);
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 3000)
+                );
+                const signedUrl = await Promise.race([signPromise, timeoutPromise]);
+                
+                newObj[`${field}_original`] = fieldValue; // Nombre del archivo original
+                newObj[field] = signedUrl;
+                newObj[`${field}_signed`] = signedUrl;
+                newObj[`${field}_expires_in`] = 86400;
+                urlsSigned++;
+              } catch (error) {
+                urlsFailed++;
+                console.error(`❌ Error firmando archivo: ${fieldValue} - ${error.message}`);
+              }
             }
           }
         }
