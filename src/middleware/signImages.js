@@ -1,0 +1,90 @@
+const { getPresignedUrl, isMinioUrl, extractObjectName } = require('../services/minioService');
+
+/**
+ * Middleware para firmar automáticamente URLs de MinIO en las respuestas
+ * Busca campos 'img', 'imagen', 'image' y 'imageUrl' en los objetos de respuesta
+ */
+const signMinioUrls = async (req, res, next) => {
+  const originalJson = res.json.bind(res);
+
+  res.json = async function (data) {
+    try {
+      // Función recursiva para firmar URLs en objetos anidados
+      const signUrls = async (obj) => {
+        if (!obj || typeof obj !== 'object') return obj;
+
+        // Si es un array, procesar cada elemento
+        if (Array.isArray(obj)) {
+          const promises = obj.map(item => signUrls(item));
+          return await Promise.all(promises);
+        }
+
+        // Si es un objeto, buscar campos de imagen
+        const imageFields = ['img', 'imagen', 'image', 'imageUrl', 'photo', 'picture'];
+        const newObj = { ...obj };
+
+        for (const field of imageFields) {
+          if (newObj[field] && typeof newObj[field] === 'string' && isMinioUrl(newObj[field])) {
+            try {
+              const objectName = extractObjectName(newObj[field]);
+              const signedUrl = await getPresignedUrl(objectName, 86400); // 24 horas
+              
+              // Agregar tanto la URL original como la firmada
+              newObj[`${field}_original`] = newObj[field];
+              newObj[field] = signedUrl;
+              newObj[`${field}_signed`] = signedUrl;
+              newObj[`${field}_expires_in`] = 86400;
+            } catch (error) {
+              console.error(`❌ Error firmando URL en campo ${field}:`, error);
+              // Mantener la URL original si falla
+            }
+          }
+        }
+
+        // Procesar objetos anidados
+        for (const key in newObj) {
+          if (newObj[key] && typeof newObj[key] === 'object') {
+            newObj[key] = await signUrls(newObj[key]);
+          }
+        }
+
+        return newObj;
+      };
+
+      // Solo firmar si la ruta está en la lista permitida o si se solicita explícitamente
+      const shouldSign = 
+        req.query.signImages === 'true' || 
+        req.path.includes('/poha/') ||
+        req.path.includes('/planta/') ||
+        req.path.includes('/medicinales/') ||
+        req.path.includes('/query-nlp/');
+
+      if (shouldSign) {
+        const signedData = await signUrls(data);
+        return originalJson(signedData);
+      }
+
+      return originalJson(data);
+    } catch (error) {
+      console.error('❌ Error en middleware signMinioUrls:', error);
+      // Si hay error, devolver data sin firmar
+      return originalJson(data);
+    }
+  };
+
+  next();
+};
+
+/**
+ * Middleware opcional para agregar información de firma en los headers
+ */
+const addSigningInfo = (req, res, next) => {
+  res.setHeader('X-MinIO-Signing-Enabled', 'true');
+  res.setHeader('X-MinIO-Signature-Expiry', '86400');
+  next();
+};
+
+module.exports = {
+  signMinioUrls,
+  addSigningInfo,
+};

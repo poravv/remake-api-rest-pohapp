@@ -133,7 +133,13 @@ jobs:
             --from-literal=POHAPP_API_SECRET="${{ secrets.POHAPP_API_SECRET }}" \
             --from-literal=POHAPP_ADMIN_KEY="${{ secrets.POHAPP_ADMIN_KEY }}" \
             --from-literal=MODEL_VERSION="${{ secrets.MODEL_VERSION }}" \
-            --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+            --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal=MINIO_ACCESS_KEY="${{ secrets.MINIO_ACCESS_KEY }}" \
+            --from-literal=MINIO_SECRET_KEY="${{ secrets.MINIO_SECRET_KEY }}" \
+            --from-literal=MINIO_BUCKET_NAME="${{ secrets.MINIO_BUCKET_NAME }}" \
+            --from-literal=MINIO_HOST="${{ secrets.MINIO_HOST }}" \
+            --from-literal=MINIO_ENDPOINT="${{ secrets.MINIO_ENDPOINT }}" \
+            --from-literal=MINIO_REGION="${{ secrets.MINIO_REGION }}"
 
       - name: Create/Update MySQL secrets
         run: |
