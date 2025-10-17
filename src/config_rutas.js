@@ -24,7 +24,7 @@ try {
     routes.use('/api/pohapp/planta',planta)
     routes.use('/api/pohapp/autor',autor)
     routes.use('/api/pohapp/usuario',usuario)
-    routes.use('/api/pohapp/poha', poha) // Middleware temporalmente deshabilitado para debug
+    routes.use('/api/pohapp/poha', signMinioUrls, poha)
     routes.use('/api/pohapp/puntos',puntos)
     routes.use('/api/pohapp/dp',dp)
     routes.use('/api/pohapp/pp',pp)

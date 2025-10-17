@@ -5,19 +5,36 @@ const { getPresignedUrl, isMinioUrl, extractObjectName } = require('../services/
  * Busca campos 'img', 'imagen', 'image' y 'imageUrl' en los objetos de respuesta
  */
 const signMinioUrls = async (req, res, next) => {
+  // Si el query param disableImageSigning está presente, no firmar
+  if (req.query.disableImageSigning === 'true') {
+    return next();
+  }
+
   const originalJson = res.json.bind(res);
 
   res.json = async function (data) {
     try {
+      // Contador para debugging
+      let urlsFound = 0;
+      let urlsSigned = 0;
+      let urlsFailed = 0;
+
       // Función recursiva para firmar URLs en objetos anidados
-      const signUrls = async (obj, depth = 0) => {
+      const signUrls = async (obj, depth = 0, visited = new WeakSet()) => {
         // Limitar profundidad para evitar loops infinitos
         if (depth > 10 || !obj || typeof obj !== 'object') return obj;
+        
+        // Evitar referencias circulares
+        if (visited.has(obj)) return obj;
+        visited.add(obj);
 
         // Si es un array, procesar cada elemento
         if (Array.isArray(obj)) {
-          const promises = obj.map(item => signUrls(item, depth + 1));
-          return await Promise.all(promises);
+          const results = [];
+          for (const item of obj) {
+            results.push(await signUrls(item, depth + 1, visited));
+          }
+          return results;
         }
 
         // Si es un objeto, buscar campos de imagen
@@ -26,13 +43,14 @@ const signMinioUrls = async (req, res, next) => {
 
         for (const field of imageFields) {
           if (newObj[field] && typeof newObj[field] === 'string' && isMinioUrl(newObj[field])) {
+            urlsFound++;
             try {
               const objectName = extractObjectName(newObj[field]);
               
-              // Timeout de 5 segundos para la firma
+              // Timeout de 3 segundos para la firma
               const signPromise = getPresignedUrl(objectName, 86400);
               const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout firmando URL')), 5000)
+                setTimeout(() => reject(new Error('Timeout')), 3000)
               );
               
               const signedUrl = await Promise.race([signPromise, timeoutPromise]);
@@ -42,48 +60,46 @@ const signMinioUrls = async (req, res, next) => {
               newObj[field] = signedUrl;
               newObj[`${field}_signed`] = signedUrl;
               newObj[`${field}_expires_in`] = 86400;
+              urlsSigned++;
             } catch (error) {
-              console.error(`❌ Error firmando URL en campo ${field}:`, error.message);
+              urlsFailed++;
+              console.error(`❌ Error firmando URL: ${newObj[field]} - ${error.message}`);
               // Mantener la URL original si falla
             }
           }
         }
 
-        // Procesar objetos anidados
+        // Procesar objetos anidados (evitar procesar buffers y objetos nativos)
         for (const key in newObj) {
-          if (newObj[key] && typeof newObj[key] === 'object') {
-            newObj[key] = await signUrls(newObj[key], depth + 1);
+          const value = newObj[key];
+          if (value && typeof value === 'object' && 
+              !(value instanceof Date) && 
+              !(value instanceof Buffer) &&
+              !visited.has(value)) {
+            newObj[key] = await signUrls(value, depth + 1, visited);
           }
         }
 
         return newObj;
       };
 
-      // Solo firmar si la ruta está en la lista permitida o si se solicita explícitamente
-      // Usar req.originalUrl o req.baseUrl para obtener la ruta completa
-      const fullPath = req.originalUrl || req.path;
-      const shouldSign = 
-        req.query.signImages === 'true' || 
-        fullPath.includes('/poha') ||
-        fullPath.includes('/planta') ||
-        fullPath.includes('/medicinales') ||
-        fullPath.includes('/query-nlp') ||
-        true; // Siempre firmar cuando el middleware está aplicado
+      console.log(`🔄 Iniciando firma de URLs para: ${req.method} ${req.path}`);
+      const startTime = Date.now();
 
-      if (shouldSign) {
-        // Timeout global de 30 segundos para todo el proceso de firma
-        const signPromise = signUrls(data);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout global en firma de URLs')), 30000)
-        );
-        
-        const signedData = await Promise.race([signPromise, timeoutPromise]);
-        return originalJson(signedData);
-      }
-
-      return originalJson(data);
+      // Timeout global de 10 segundos para todo el proceso de firma
+      const signPromise = signUrls(data);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout global')), 10000)
+      );
+      
+      const signedData = await Promise.race([signPromise, timeoutPromise]);
+      
+      const duration = Date.now() - startTime;
+      console.log(`✅ Firma completada en ${duration}ms - Encontradas: ${urlsFound}, Firmadas: ${urlsSigned}, Fallidas: ${urlsFailed}`);
+      
+      return originalJson(signedData);
     } catch (error) {
-      console.error('❌ Error en middleware signMinioUrls:', error.message);
+      console.error(`❌ Error crítico en middleware signMinioUrls: ${error.message}`);
       // Si hay error, devolver data sin firmar
       return originalJson(data);
     }
