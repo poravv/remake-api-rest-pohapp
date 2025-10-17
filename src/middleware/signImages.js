@@ -10,12 +10,13 @@ const signMinioUrls = async (req, res, next) => {
   res.json = async function (data) {
     try {
       // Función recursiva para firmar URLs en objetos anidados
-      const signUrls = async (obj) => {
-        if (!obj || typeof obj !== 'object') return obj;
+      const signUrls = async (obj, depth = 0) => {
+        // Limitar profundidad para evitar loops infinitos
+        if (depth > 10 || !obj || typeof obj !== 'object') return obj;
 
         // Si es un array, procesar cada elemento
         if (Array.isArray(obj)) {
-          const promises = obj.map(item => signUrls(item));
+          const promises = obj.map(item => signUrls(item, depth + 1));
           return await Promise.all(promises);
         }
 
@@ -27,7 +28,14 @@ const signMinioUrls = async (req, res, next) => {
           if (newObj[field] && typeof newObj[field] === 'string' && isMinioUrl(newObj[field])) {
             try {
               const objectName = extractObjectName(newObj[field]);
-              const signedUrl = await getPresignedUrl(objectName, 86400); // 24 horas
+              
+              // Timeout de 5 segundos para la firma
+              const signPromise = getPresignedUrl(objectName, 86400);
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout firmando URL')), 5000)
+              );
+              
+              const signedUrl = await Promise.race([signPromise, timeoutPromise]);
               
               // Agregar tanto la URL original como la firmada
               newObj[`${field}_original`] = newObj[field];
@@ -35,7 +43,7 @@ const signMinioUrls = async (req, res, next) => {
               newObj[`${field}_signed`] = signedUrl;
               newObj[`${field}_expires_in`] = 86400;
             } catch (error) {
-              console.error(`❌ Error firmando URL en campo ${field}:`, error);
+              console.error(`❌ Error firmando URL en campo ${field}:`, error.message);
               // Mantener la URL original si falla
             }
           }
@@ -44,7 +52,7 @@ const signMinioUrls = async (req, res, next) => {
         // Procesar objetos anidados
         for (const key in newObj) {
           if (newObj[key] && typeof newObj[key] === 'object') {
-            newObj[key] = await signUrls(newObj[key]);
+            newObj[key] = await signUrls(newObj[key], depth + 1);
           }
         }
 
@@ -63,13 +71,19 @@ const signMinioUrls = async (req, res, next) => {
         true; // Siempre firmar cuando el middleware está aplicado
 
       if (shouldSign) {
-        const signedData = await signUrls(data);
+        // Timeout global de 30 segundos para todo el proceso de firma
+        const signPromise = signUrls(data);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout global en firma de URLs')), 30000)
+        );
+        
+        const signedData = await Promise.race([signPromise, timeoutPromise]);
         return originalJson(signedData);
       }
 
       return originalJson(data);
     } catch (error) {
-      console.error('❌ Error en middleware signMinioUrls:', error);
+      console.error('❌ Error en middleware signMinioUrls:', error.message);
       // Si hay error, devolver data sin firmar
       return originalJson(data);
     }
