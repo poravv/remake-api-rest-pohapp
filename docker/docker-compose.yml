@@ -21,22 +21,63 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    depends_on:
-      - db-pohapp
     ports:
       - "3000:3000"
+    env_file:
+      - ../.env
     environment:
       DB_PASSWORD: pohapp2024
-      DB_HOST: pohapp-host
+      DB_HOST: db-pohapp
       DB_USER: root
       DB_PORT: 3306
       DB_NAME: db-pohapp
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_TTL_SECONDS: 300
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX: 120
+      RATE_LIMIT_AI_WINDOW_MS: 60000
+      RATE_LIMIT_AI_MAX: 30
     container_name: pohapp-back-container
+    networks:
+      - pohapp-net
+    depends_on:
+      - db-pohapp
+      - redis
+
+  pohapp-ai-setup:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      DB_PASSWORD: pohapp2024
+      DB_HOST: db-pohapp
+      DB_USER: root
+      DB_PORT: 3306
+      DB_NAME: db-pohapp
+    command: ["sh","-c","node src/scripts/setup_ai.js && node src/scripts/generarEmbeddings.js"]
+    depends_on:
+      - db-pohapp
+    networks:
+      - pohapp-net
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    container_name: pohapp-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     networks:
       - pohapp-net
 
 volumes:
   mysql_data:
+  redis_data:
 
 networks:
   pohapp-net:

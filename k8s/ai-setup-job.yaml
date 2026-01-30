@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pohapp-ai-setup
+  namespace: pohapp-backend
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ai-setup
+          image: ghcr.io/poravv/remake-api-rest-pohapp:latest
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - node src/scripts/setup_ai.js && node src/scripts/generarEmbeddings.js
+          envFrom:
+            - configMapRef:
+                name: pohapp-backend-config
+            - secretRef:
+                name: pohapp-backend-env-secrets

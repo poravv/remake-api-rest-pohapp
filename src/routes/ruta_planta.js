@@ -3,13 +3,56 @@ const ruta = express.Router();
 const planta = require('../model/planta')
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
+const { invalidateByPrefix } = require('../middleware/cache');
+
+ruta.use((req, _res, next) => {
+    // Normaliza params numericos basicos (evita NaN en rutas con IDs).
+    if (req.params && req.params.idplanta !== undefined) {
+        const id = parseInt(req.params.idplanta, 10);
+        if (Number.isNaN(id)) {
+            return _res.status(400).json({ error: 'idplanta invalido' });
+        }
+    }
+    next();
+});
+
+const isNonEmptyString = (value) =>
+    typeof value === 'string' && value.trim().length > 0;
+
+const parsePagination = (req, res) => {
+    const hasPage = req.query.page !== undefined;
+    const hasPageSize = req.query.pageSize !== undefined;
+    if (!hasPage && !hasPageSize) return null;
+
+    const page = hasPage ? parseInt(req.query.page, 10) : 0;
+    const pageSize = hasPageSize ? parseInt(req.query.pageSize, 10) : 50;
+
+    if (Number.isNaN(page) || Number.isNaN(pageSize) || page < 0 || pageSize <= 0) {
+        res.status(400).json({ error: 'paginacion invalida' });
+        return null;
+    }
+
+    return {
+        limit: pageSize,
+        offset: page * pageSize,
+    };
+};
 
 ruta.get('/getsql/:nombre', async (req, res) => {
-    await database.query(`select idplanta,nombre,descripcion,estado from planta where upper(nombre) like(upper('%${req.params.nombre}%'))`,
-        { type: QueryTypes.SELECT }).then((response) => {
+    const nombre = (req.params.nombre || '').trim();
+    if (!nombre) {
+        return res.status(400).json({ error: 'nombre requerido' });
+    }
+    await database
+        .query(
+            'select idplanta,nombre,descripcion,estado from planta where upper(nombre) like upper(:nombre)',
+            { replacements: { nombre: `%${nombre}%` }, type: QueryTypes.SELECT },
+        )
+        .then((response) => {
             res.json(response);
-        }).catch((error) => {
-            console.error(error); 
+        })
+        .catch((error) => {
+            console.error(error);
             console.log(`Algo salió mal ${error}`);
         });
 
@@ -30,7 +73,11 @@ ruta.get('/getlimit/', async (req, res) => {
 })
 
 ruta.get('/get/', async (req, res) => {
-    await planta.findAll().then((response) => {
+    const pagination = parsePagination(req, res);
+    if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
+        return;
+    }
+    await planta.findAll({ ...(pagination || {}) }).then((response) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
@@ -49,7 +96,13 @@ ruta.get('/get/:idplanta', async (req, res) => {
 
 ruta.post('/post/', async (req, res) => {
     try {
+        const { nombre, descripcion, estado } = req.body || {};
+        if (!isNonEmptyString(nombre) || !isNonEmptyString(descripcion) || !isNonEmptyString(estado)) {
+            return res.status(400).json({ error: 'nombre, descripcion y estado son requeridos' });
+        }
         await planta.create(req.body).then((response) => {
+            invalidateByPrefix('plantas');
+            invalidateByPrefix('medicinales');
             res.json(response);
         }).catch((error) => {
             console.error(error); 
@@ -62,7 +115,12 @@ ruta.post('/post/', async (req, res) => {
 })
 
 ruta.put('/put/:idplanta', async (req, res) => {
+    if (!req.body || Object.keys(req.body).length === 0) {
+        return res.status(400).json({ error: 'body requerido' });
+    }
     await planta.update(req.body, { where: { idplanta: req.params.idplanta } }).then((response) => {
+        invalidateByPrefix('plantas');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error); 
@@ -72,6 +130,8 @@ ruta.put('/put/:idplanta', async (req, res) => {
 
 ruta.delete('/delete/:idplanta', async (req, res) => {
     await planta.destroy({ where: { idplanta: req.params.idplanta } }).then((response) => {
+        invalidateByPrefix('plantas');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error); 

@@ -1,23 +1,54 @@
 const Minio = require('minio');
 
-// Configuración del cliente MinIO
+const pickPreferredEndpoint = (endpoint, host, fallback) => {
+  const normalize = (value) =>
+    typeof value === 'string' ? value.replace(/^https?:\/\//, '') : '';
+  const ep = normalize(endpoint);
+  const hd = normalize(host);
+  if (ep.includes('minpoint.')) return ep;
+  if (hd.includes('minpoint.')) return hd;
+  return ep || hd || fallback;
+};
+
+const minioEndpoint = pickPreferredEndpoint(
+  process.env.MINIO_ENDPOINT,
+  process.env.MINIO_HOST,
+  'minpoint.mindtechpy.net',
+);
+const minioHost = (process.env.MINIO_HOST || minioEndpoint).replace(
+  /^https?:\/\//,
+  '',
+);
+const minioSigningHost =
+  process.env.MINIO_SIGNING_HOST || minioEndpoint;
+const minioUseSSL = process.env.MINIO_USE_SSL !== 'false';
+const minioPort = parseInt(
+  process.env.MINIO_PORT || (minioUseSSL ? '443' : '80'),
+  10,
+);
+const minioPathStyle = process.env.MINIO_PATH_STYLE
+  ? process.env.MINIO_PATH_STYLE === 'true'
+  : true;
+
+// Configuración del cliente MinIO (firma contra MINIO_SIGNING_HOST o MINIO_ENDPOINT)
 const minioClient = new Minio.Client({
-  endPoint: process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net',
-  port: 443,
-  useSSL: true,
+  endPoint: minioSigningHost,
+  port: minioPort,
+  useSSL: minioUseSSL,
   accessKey: process.env.MINIO_ACCESS_KEY || '',
   secretKey: process.env.MINIO_SECRET_KEY || '',
   region: process.env.MINIO_REGION || 'py-east-1',
-  pathStyle: true,  // Usar path-style URLs en lugar de virtual-hosted
+  pathStyle: minioPathStyle, // Usar path-style URLs en lugar de virtual-hosted
 });
 
 const bucketName = process.env.MINIO_BUCKET_NAME || 'bucket-pohapp';
 
 console.log('🔧 MinIO Client configurado:');
-console.log('   - Endpoint:', process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net');
+console.log('   - Host (firma):', minioSigningHost);
+console.log('   - Endpoint (public):', minioEndpoint);
 console.log('   - Bucket:', bucketName);
 console.log('   - Region:', process.env.MINIO_REGION || 'py-east-1');
-console.log('   - PathStyle: true');
+console.log('   - PathStyle:', minioPathStyle);
 
 /**
  * Genera una URL firmada (presigned) para acceder a una imagen privada
@@ -27,11 +58,31 @@ console.log('   - PathStyle: true');
  */
 const getPresignedUrl = async (objectName, expirySeconds = 86400) => {
   try {
+    const normalizeObjectName = (value) => {
+      if (!value) return '';
+      let cleaned = value.replace(/^\/+/, '');
+      const queryIndex = cleaned.indexOf('?');
+      if (queryIndex !== -1) {
+        cleaned = cleaned.slice(0, queryIndex);
+      }
+      cleaned = cleaned.replace(/&version_id=null$/i, '').replace(/\?version_id=null$/i, '');
+      return cleaned;
+    };
+
     // Remover el prefijo del bucket si viene en la URL completa
-    const cleanObjectName = objectName
-      .replace(`https://minpoint.mindtechpy.net/${bucketName}/`, '')
-      .replace(`https://minio.mindtechpy.net/api/v1/buckets/${bucketName}/objects/download?preview=true&prefix=`, '')
-      .replace(/^\/+/, ''); // Remover barras iniciales
+    const cleanObjectName = normalizeObjectName(
+      objectName
+      .replace(`https://${minioEndpoint}/${bucketName}/`, '')
+      .replace(`https://${minioHost}/${bucketName}/`, '')
+      .replace(
+        `https://${minioEndpoint}/api/v1/buckets/${bucketName}/objects/download?preview=true&prefix=`,
+        '',
+      )
+      .replace(
+        `https://${minioHost}/api/v1/buckets/${bucketName}/objects/download?preview=true&prefix=`,
+        '',
+      )
+    );
 
     console.log(`🔗 Generando URL firmada para: ${cleanObjectName}`);
     
@@ -55,22 +106,38 @@ const getPresignedUrl = async (objectName, expirySeconds = 86400) => {
  */
 const extractObjectName = (url) => {
   if (!url) return '';
+
+  const normalizeObjectName = (value) => {
+    if (!value) return '';
+    let cleaned = value.replace(/^\/+/, '');
+    const queryIndex = cleaned.indexOf('?');
+    if (queryIndex !== -1) {
+      cleaned = cleaned.slice(0, queryIndex);
+    }
+    cleaned = cleaned.replace(/&version_id=null$/i, '').replace(/\?version_id=null$/i, '');
+    return cleaned;
+  };
   
   // Patrones comunes de URLs de MinIO
+  const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const hostPattern = `${escapeRegex(minioEndpoint)}|${escapeRegex(minioHost)}`;
+  const bucketPattern = escapeRegex(bucketName);
   const patterns = [
-    /https:\/\/minpoint\.mindtechpy\.net\/bucket-pohapp\/(.+)/,
-    /https:\/\/minio\.mindtechpy\.net\/api\/v1\/buckets\/bucket-pohapp\/objects\/download\?preview=true&prefix=(.+)/,
+    new RegExp(`https?:\\/\\/(?:${hostPattern})\\/${bucketPattern}\\/(.+)`),
+    new RegExp(
+      `https?:\\/\\/(?:${hostPattern})\\/api\\/v1\\/buckets\\/${bucketPattern}\\/objects\\/download\\?preview=true&prefix=(.+)`,
+    ),
   ];
   
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match && match[1]) {
-      return decodeURIComponent(match[1]);
+      return normalizeObjectName(decodeURIComponent(match[1]));
     }
   }
   
   // Si no coincide con ningún patrón, devolver la URL original
-  return url;
+  return normalizeObjectName(url);
 };
 
 /**
@@ -80,8 +147,7 @@ const extractObjectName = (url) => {
  */
 const isMinioUrl = (url) => {
   if (!url) return false;
-  return url.includes('minpoint.mindtechpy.net') || 
-         url.includes('minio.mindtechpy.net');
+  return url.includes(minioEndpoint) || url.includes(minioHost);
 };
 
 /**

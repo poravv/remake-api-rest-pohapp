@@ -26,6 +26,12 @@ function cosineSimilarity(vec1, vec2) {
 router.post('/', async (req, res) => {
   const { pregunta } = req.body;
   if (!pregunta) return res.status(400).json({ error: 'Falta la pregunta' });
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({
+      error: 'Servicio de IA no configurado',
+      message: 'Falta OPENAI_API_KEY en el backend',
+    });
+  }
 
   try {
     const cleanInput = normalize(pregunta);
@@ -87,7 +93,10 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error en /query-nlp/preview:', err);
-    res.status(500).json({ error: 'Error al procesar la pregunta' });
+    res.status(500).json({
+      error: 'Error al procesar la pregunta',
+      message: err?.message || 'Error desconocido',
+    });
   }
 });
 
