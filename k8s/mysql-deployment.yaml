@@ -41,23 +41,23 @@ spec:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: pohapp-mysql-secrets
-              key: mysql-root-password
+              name: pohapp-backend-env-secrets
+              key: MYSQL_ROOT_PASSWORD
         - name: MYSQL_DATABASE
           valueFrom:
             secretKeyRef:
-              name: pohapp-mysql-secrets
-              key: mysql-database
+              name: pohapp-backend-env-secrets
+              key: MYSQL_DATABASE
         - name: MYSQL_USER
           valueFrom:
             secretKeyRef:
-              name: pohapp-mysql-secrets
-              key: mysql-user
+              name: pohapp-backend-env-secrets
+              key: MYSQL_USER
         - name: MYSQL_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: pohapp-mysql-secrets
-              key: mysql-password
+              name: pohapp-backend-env-secrets
+              key: MYSQL_PASSWORD
         - name: MYSQL_CHARSET
           value: "utf8mb4"
         - name: MYSQL_COLLATION

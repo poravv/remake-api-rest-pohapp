@@ -4,6 +4,16 @@ const { getPresignedUrl, isMinioUrl, extractObjectName } = require('../services/
  * Middleware para firmar automáticamente URLs de MinIO en las respuestas
  * Busca campos 'img', 'imagen', 'image' y 'imageUrl' en los objetos de respuesta
  */
+const isPresignedUrl = (value) => {
+  if (!value) return false;
+  return /[?&]X-Amz-(Algorithm|Signature|Credential)=/i.test(value);
+};
+
+const preferredEndpoint =
+  process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net';
+const hasPreferredHost = (value) =>
+  typeof value === 'string' && value.includes(preferredEndpoint);
+
 const signMinioUrls = async (req, res, next) => {
   // Si el query param disableImageSigning está presente, no firmar
   if (req.query.disableImageSigning === 'true') {
@@ -53,6 +63,9 @@ const signMinioUrls = async (req, res, next) => {
             
             // Caso 1: Es una URL completa de MinIO -> Firmar
             if (isMinioUrl(fieldValue)) {
+              if (isPresignedUrl(fieldValue) && hasPreferredHost(fieldValue)) {
+                continue;
+              }
               urlsFound++;
               try {
                 const objectName = extractObjectName(fieldValue);

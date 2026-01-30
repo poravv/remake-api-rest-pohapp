@@ -1,6 +1,7 @@
 const express = require('express')
 const ruta = express.Router();
 const poha_planta = require('../model/poha_planta')
+const { invalidateByPrefix } = require('../middleware/cache');
 
 ruta.get('/get/', async (req, res) => {
     await poha_planta.findAll().then((response) => {
@@ -22,6 +23,8 @@ ruta.get('/get/:idpoha_planta', async (req, res) => {
 
 ruta.post('/post/', async (req, res) => {
     await poha_planta.create(req.body).then((response) => {
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error); 
@@ -31,6 +34,8 @@ ruta.post('/post/', async (req, res) => {
 
 ruta.put('/put/:idpoha_planta', async (req, res) => {
     await poha_planta.update(req.body, { where: { idpoha_planta: req.params.idpoha_planta } }).then((response) => {
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error); 
@@ -40,6 +45,8 @@ ruta.put('/put/:idpoha_planta', async (req, res) => {
 
 ruta.delete('/delete/:idpoha_planta', async (req, res) => {
     await poha_planta.destroy({ where: { idpoha_planta: req.params.idpoha_planta } }).then((response) => {
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error); 

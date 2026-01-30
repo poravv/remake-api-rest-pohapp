@@ -3,10 +3,48 @@ const ruta = express.Router();
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
 
+const parseIntParam = (value, name, res) => {
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
+        res.status(400).json({ error: `${name} invalido` });
+        return null;
+    }
+    return parsed;
+};
+
+const parsePagination = (req, res) => {
+    const hasPage = req.query.page !== undefined;
+    const hasPageSize = req.query.pageSize !== undefined;
+    if (!hasPage && !hasPageSize) return null;
+
+    const page = hasPage ? parseInt(req.query.page, 10) : 0;
+    const pageSize = hasPageSize ? parseInt(req.query.pageSize, 10) : 50;
+
+    if (Number.isNaN(page) || Number.isNaN(pageSize) || page < 0 || pageSize <= 0) {
+        res.status(400).json({ error: 'paginacion invalida' });
+        return null;
+    }
+
+    return {
+        limit: pageSize,
+        offset: page * pageSize,
+    };
+};
+
 ruta.get('/get/', async (req, res) => {
     try {
-        const query = `select * from vw_medicina`;
-        await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
+        const pagination = parsePagination(req, res);
+        if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
+            return;
+        }
+        let query = `select * from vw_medicina`;
+        const replacements = {};
+        if (pagination) {
+            query += ' limit :limit offset :offset';
+            replacements.limit = pagination.limit;
+            replacements.offset = pagination.offset;
+        }
+        await database.query(query, { type: QueryTypes.SELECT, replacements }).then((response) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
@@ -22,9 +60,12 @@ ruta.get('/get/', async (req, res) => {
 
 ruta.get('/getid/:idpoha', async (req, res) => {
     try {
-
-        const query = `select * from vw_medicina where idpoha = ${req.params.idpoha}`;
-        await database.query(query, { type: QueryTypes.SELECT }).then((response) => {
+        const idpoha = parseIntParam(req.params.idpoha, 'idpoha', res);
+        if (idpoha === null) return;
+        const query = `select * from vw_medicina where idpoha = :idpoha`;
+        await database
+            .query(query, { replacements: { idpoha }, type: QueryTypes.SELECT })
+            .then((response) => {
             res.json(response);
         }).catch((error) => {
             console.error(error); 
@@ -42,44 +83,47 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
     //console.log("entra en get----")
     //console.log(req.params)
     try {
-        var rs_planta;
-        var dolencia = "";
-        var te = "";
-        var mate = "";
-        var terere = "";
-        var planta = "";
+        const iddolencias = parseIntParam(req.params.iddolencias, 'iddolencias', res);
+        if (iddolencias === null) return;
+        const te = parseIntParam(req.params.te, 'te', res);
+        if (te === null) return;
+        const mate = parseIntParam(req.params.mate, 'mate', res);
+        if (mate === null) return;
+        const terere = parseIntParam(req.params.terere, 'terere', res);
+        if (terere === null) return;
+        const idplanta = parseIntParam(req.params.idplanta, 'idplanta', res);
+        if (idplanta === null) return;
 
-        if (req.params.iddolencias != '0') {
-            dolencia = `and iddolencias like '%,${req.params.iddolencias}%'`
+        const conditions = [`estado = 'AC'`];
+        const replacements = [];
+
+        if (iddolencias !== 0) {
+            conditions.push('iddolencias like ?');
+            replacements.push(`%,${iddolencias}%`);
         }
-        if (req.params.te != '0') {
-            te = `and te = ${req.params.te}`
+        if (te !== 0) {
+            conditions.push('te = ?');
+            replacements.push(te);
         }
-        if (req.params.mate != '0') {
-            mate = `and mate= ${req.params.mate}`
+        if (mate !== 0) {
+            conditions.push('mate = ?');
+            replacements.push(mate);
         }
-        if (req.params.terere != '0') {
-            terere = `and terere =${req.params.terere}`
+        if (terere !== 0) {
+            conditions.push('terere = ?');
+            replacements.push(terere);
         }
-        if (req.params.idplanta != '0') {
-            planta = `and idplanta= ${req.params.idplanta}`
-        }
-
-        var query = "";
-
-        if (req.params.iddolencias == '0' && req.params.te == '0' && req.params.mate == '0' && req.params.terere == '0' && req.params.idplanta == '0') {
-
-            query = `select * from vw_medicina where estado = 'AC' limit 100`;
-
-        } else {
-
-            query = `select * from vw_medicina where estado='AC' ${dolencia} ${te} ${mate} ${terere} ${planta} limit 100`;
-
+        if (idplanta !== 0) {
+            conditions.push('idplanta = ?');
+            replacements.push(idplanta);
         }
 
-        //console.log(query)
+        const query = `select * from vw_medicina where ${conditions.join(' and ')} limit 100`;
 
-        rs_planta = await database.query(query,{ type: QueryTypes.SELECT });
+        const rs_planta = await database.query(query, {
+            replacements,
+            type: QueryTypes.SELECT,
+        });
         res.json(rs_planta);
 
     } catch (error) {

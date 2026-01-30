@@ -4,14 +4,32 @@ metadata:
   name: pohapp-backend-config
   namespace: pohapp-backend
 data:
-  # Database Configuration
-  MYSQL_DB: "db-pohapp"
-  MYSQL_HOST: "mysql-service"
-  MYSQL_PORT: "3306"
+  # Database Configuration (usado por backend y job IA)
+  DB_NAME: "db-pohapp"
+  DB_HOST: "mysql-service"
+  DB_PORT: "3306"
+  DB_DATABASE: "db-pohapp"
   
   # Application Configuration
   APP_NAME: "Pohapp Backend API"
   API_VERSION: "v1.0.0"
+  NODE_ENV: "production"
   
   # Model Configuration
   MODEL_VERSION: "v20250504"
+
+  # MinIO Configuration
+  MINIO_BUCKET_NAME: "bucket-pohapp"
+  MINIO_HOST: "minio.mindtechpy.net"
+  MINIO_ENDPOINT: "minpoint.mindtechpy.net"
+  MINIO_SIGNING_HOST: "minpoint.mindtechpy.net"
+  MINIO_REGION: "py-east-1"
+
+  # Redis / Cache
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  CACHE_TTL_SECONDS: "300"
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX: "120"
+  RATE_LIMIT_AI_WINDOW_MS: "60000"
+  RATE_LIMIT_AI_MAX: "30"

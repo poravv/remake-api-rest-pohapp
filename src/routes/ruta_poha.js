@@ -10,6 +10,26 @@ const { Op } = require('sequelize');
 const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const sequelize = require('../database');
+const { invalidateByPrefix } = require('../middleware/cache');
+
+const parsePagination = (req, res) => {
+    const hasPage = req.query.page !== undefined;
+    const hasPageSize = req.query.pageSize !== undefined;
+    if (!hasPage && !hasPageSize) return null;
+
+    const page = hasPage ? parseInt(req.query.page, 10) : 0;
+    const pageSize = hasPageSize ? parseInt(req.query.pageSize, 10) : 20;
+
+    if (Number.isNaN(page) || Number.isNaN(pageSize) || page < 0 || pageSize <= 0) {
+        res.status(400).json({ error: 'paginacion invalida' });
+        return null;
+    }
+
+    return {
+        limit: pageSize,
+        offset: page * pageSize,
+    };
+};
 
 ruta.get('/count/', async (req, res) => {
     await poha.count().then((response) => {
@@ -21,12 +41,18 @@ ruta.get('/count/', async (req, res) => {
 })
 
 ruta.get('/get/', async (req, res) => {
+    const pagination = parsePagination(req, res);
+    if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
+        return;
+    }
     await poha.findAll({
+        ...(pagination || {}),
         include: [
             { model: autor },
             { model: poha_planta, include: [{ model: planta }] },
             { model: dolencias_poha, include: [{ model: dolencias }] }
-        ]
+        ],
+        distinct: true,
     }).then((response) => {
         res.json(response);
     }).catch((error) => {
@@ -202,6 +228,8 @@ ruta.post('/post/', async (req, res) => {
                 replacements: [nuevoPoha.idpoha, textoEntrenamiento, JSON.stringify(embedding)],
             });
 
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
         res.json({ ...nuevoPoha.toJSON(), embeddingGuardado: true });
 
     } catch (error) {
@@ -212,6 +240,8 @@ ruta.post('/post/', async (req, res) => {
 
 ruta.put('/put/:idpoha', async (req, res) => {
     await poha.update(req.body, { where: { idpoha: req.params.idpoha } }).then((response) => {
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error);
@@ -240,6 +270,8 @@ ruta.delete('/delete/:idpoha', async (req, res) => {
     });
 
     await poha.destroy({ where: { idpoha: req.params.idpoha } }).then((response) => {
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
         res.json(response);
     }).catch((error) => {
         console.error(error);

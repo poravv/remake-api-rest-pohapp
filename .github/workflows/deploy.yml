@@ -128,6 +128,10 @@ jobs:
             --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
             --from-literal=DB_DATABASE="${{ secrets.DB_DATABASE }}" \
             --from-literal=DB_NAME="${{ secrets.DB_NAME }}" \
+            --from-literal=MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
+            --from-literal=MYSQL_DATABASE="${{ secrets.MYSQL_DATABASE }}" \
+            --from-literal=MYSQL_USER="${{ secrets.MYSQL_USER }}" \
+            --from-literal=MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}" \
             --from-literal=NODE_ENV="production" \
             --from-literal=PORT="3000" \
             --from-literal=POHAPP_API_SECRET="${{ secrets.POHAPP_API_SECRET }}" \
@@ -140,17 +144,6 @@ jobs:
             --from-literal=MINIO_HOST="${{ secrets.MINIO_HOST }}" \
             --from-literal=MINIO_ENDPOINT="${{ secrets.MINIO_ENDPOINT }}" \
             --from-literal=MINIO_REGION="${{ secrets.MINIO_REGION }}"
-
-      - name: Create/Update MySQL secrets
-        run: |
-          set -euo pipefail
-          kubectl delete secret pohapp-mysql-secrets -n ${{ env.NAMESPACE }} --ignore-not-found=true
-          kubectl create secret generic pohapp-mysql-secrets \
-            --namespace=${{ env.NAMESPACE }} \
-            --from-literal=mysql-root-password="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
-            --from-literal=mysql-user="${{ secrets.MYSQL_USER }}" \
-            --from-literal=mysql-password="${{ secrets.MYSQL_PASSWORD }}" \
-            --from-literal=mysql-database="${{ secrets.MYSQL_DATABASE }}"
 
       - name: Apply configmap
         run: |

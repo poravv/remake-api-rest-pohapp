@@ -1,4 +1,4 @@
-CREATE TABLE medicina_embeddings (
+CREATE TABLE IF NOT EXISTS medicina_embeddings (
   idpoha INT PRIMARY KEY,
   resumen TEXT,
   embedding JSON
@@ -62,7 +62,7 @@ WHERE p.estado = 'AC'
 GROUP BY p.idpoha;
 
 
-CREATE TABLE chat_historial (
+CREATE TABLE IF NOT EXISTS chat_historial (
   id INT AUTO_INCREMENT PRIMARY KEY,
   idusuario VARCHAR(200) NOT NULL,
   pregunta TEXT,

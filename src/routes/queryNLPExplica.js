@@ -26,6 +26,12 @@ router.post('/', async (req, res) => {
   if (!pregunta || !idusuario) {
     return res.status(400).json({ error: 'Faltan datos requeridos: pregunta o idusuario' });
   }
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({
+      error: 'Servicio de IA no configurado',
+      message: 'Falta OPENAI_API_KEY en el backend',
+    });
+  }
 
   try {
     const input = normalize(pregunta);
@@ -176,7 +182,10 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error en /query-nlp/explica:', error);
-    res.status(500).json({ error: 'Error al generar la respuesta.' });
+    res.status(500).json({
+      error: 'Error al generar la respuesta.',
+      message: error?.message || 'Error desconocido',
+    });
   }
 });
 
