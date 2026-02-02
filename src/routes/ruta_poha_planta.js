@@ -54,5 +54,22 @@ ruta.delete('/delete/:idpoha_planta', async (req, res) => {
     });
 })
 
+// Eliminar todas las relaciones por poha+usuario (útil para edición segura)
+ruta.delete('/delete-by-poha/:idpoha/:idusuario', async (req, res) => {
+    const { idpoha, idusuario } = req.params;
+    if (!idpoha || !idusuario) {
+        return res.status(400).json({ error: 'idpoha e idusuario requeridos' });
+    }
+    await poha_planta.destroy({ where: { idpoha, idusuario } }).then((response) => {
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
+        res.json(response);
+    }).catch((error) => {
+        console.error(error); 
+        console.log(`Algo salió mal ${error}`);
+        res.status(500).json({ error: 'Error eliminando relaciones poha_planta' });
+    });
+})
+
 
 module.exports = ruta;
