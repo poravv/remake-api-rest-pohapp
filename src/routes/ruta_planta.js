@@ -72,6 +72,46 @@ ruta.get('/getlimit/', async (req, res) => {
     }
 })
 
+ruta.get('/usage', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                p.idplanta,
+                p.nombre,
+                p.descripcion,
+                p.estado,
+                p.img,
+                p.nombre_cientifico,
+                p.familia,
+                p.subfamilia,
+                p.habitad_distribucion,
+                p.ciclo_vida,
+                p.fenologia,
+                COUNT(DISTINCT pp.idpoha) AS poha_count
+            FROM planta p
+            LEFT JOIN poha_planta pp ON pp.idplanta = p.idplanta
+            GROUP BY 
+                p.idplanta,
+                p.nombre,
+                p.descripcion,
+                p.estado,
+                p.img,
+                p.nombre_cientifico,
+                p.familia,
+                p.subfamilia,
+                p.habitad_distribucion,
+                p.ciclo_vida,
+                p.fenologia
+        `;
+
+        const response = await database.query(query, { type: QueryTypes.SELECT });
+        res.json(response);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error obteniendo uso de plantas' });
+    }
+});
+
 ruta.get('/get/', async (req, res) => {
     const pagination = parsePagination(req, res);
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
