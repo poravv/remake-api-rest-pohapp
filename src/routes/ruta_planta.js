@@ -1,6 +1,7 @@
 const express = require('express')
 const ruta = express.Router();
 const planta = require('../model/planta')
+const usuario = require('../model/usuario')
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
@@ -117,7 +118,11 @@ ruta.get('/get/', async (req, res) => {
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
         return;
     }
-    await planta.findAll({ ...(pagination || {}) }).then((response) => {
+    // Solo devolver plantas activas (estado = 'AC')
+    await planta.findAll({ 
+        where: { estado: 'AC' },
+        ...(pagination || {}) 
+    }).then((response) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
@@ -136,21 +141,34 @@ ruta.get('/get/:idplanta', async (req, res) => {
 
 ruta.post('/post/', async (req, res) => {
     try {
-        const { nombre, descripcion, estado } = req.body || {};
-        if (!isNonEmptyString(nombre) || !isNonEmptyString(descripcion) || !isNonEmptyString(estado)) {
-            return res.status(400).json({ error: 'nombre, descripcion y estado son requeridos' });
+        const { nombre, descripcion, idusuario } = req.body || {};
+        if (!isNonEmptyString(nombre) || !isNonEmptyString(descripcion)) {
+            return res.status(400).json({ error: 'nombre y descripcion son requeridos' });
         }
-        await planta.create(req.body).then((response) => {
+
+        // Determinar estado según rol del usuario
+        let estado = 'PE'; // Por defecto, pendiente de aprobación
+        if (idusuario) {
+            const user = await usuario.findByPk(idusuario);
+            if (user && user.isAdmin === 1) {
+                estado = 'AC'; // Admin: activo directamente
+            }
+        }
+
+        const plantaData = { ...req.body, estado };
+        await planta.create(plantaData).then((response) => {
             invalidateByPrefix('plantas');
             invalidateByPrefix('medicinales');
             res.json(response);
         }).catch((error) => {
             console.error(error); 
             console.log(`Algo salió mal ${error}`);
+            res.status(500).json({ error: 'Error al crear planta' });
         });
     } catch (error) {
         console.error(error); 
         console.log(`Algo salió mal ${error}`);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 })
 
@@ -178,6 +196,102 @@ ruta.delete('/delete/:idplanta', async (req, res) => {
         console.log(`Algo salió mal ${error}`);
     });
 })
+
+// ============================================================
+// ENDPOINTS DE MODERACIÓN
+// ============================================================
+
+// Listar plantas pendientes de aprobación (solo para admin)
+ruta.get('/pendientes', async (req, res) => {
+    try {
+        const { idusuario } = req.query;
+        
+        // Verificar que es admin
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+        
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado: se requiere rol de administrador' });
+        }
+
+        const pendientes = await planta.findAll({ 
+            where: { estado: 'PE' },
+            order: [['idplanta', 'DESC']]
+        });
+        res.json(pendientes);
+    } catch (error) {
+        console.error('Error obteniendo plantas pendientes:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// Aprobar planta pendiente (cambiar estado de PE a AC)
+ruta.put('/aprobar/:idplanta', async (req, res) => {
+    try {
+        const { idusuario } = req.body || {};
+        
+        // Verificar que es admin
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+        
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado: se requiere rol de administrador' });
+        }
+
+        const result = await planta.update(
+            { estado: 'AC' }, 
+            { where: { idplanta: req.params.idplanta, estado: 'PE' } }
+        );
+        
+        if (result[0] === 0) {
+            return res.status(404).json({ error: 'Planta no encontrada o ya aprobada' });
+        }
+
+        invalidateByPrefix('plantas');
+        invalidateByPrefix('medicinales');
+        res.json({ message: 'Planta aprobada exitosamente', affected: result[0] });
+    } catch (error) {
+        console.error('Error aprobando planta:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// Rechazar planta pendiente (eliminar o marcar como inactiva)
+ruta.put('/rechazar/:idplanta', async (req, res) => {
+    try {
+        const { idusuario } = req.body || {};
+        
+        // Verificar que es admin
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+        
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado: se requiere rol de administrador' });
+        }
+
+        const result = await planta.update(
+            { estado: 'IN' }, 
+            { where: { idplanta: req.params.idplanta, estado: 'PE' } }
+        );
+        
+        if (result[0] === 0) {
+            return res.status(404).json({ error: 'Planta no encontrada o ya procesada' });
+        }
+
+        invalidateByPrefix('plantas');
+        invalidateByPrefix('medicinales');
+        res.json({ message: 'Planta rechazada', affected: result[0] });
+    } catch (error) {
+        console.error('Error rechazando planta:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
 
 
 module.exports = ruta;
