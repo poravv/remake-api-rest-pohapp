@@ -63,94 +63,157 @@ ruta.get('/get/', async (req, res) => {
 
 
 ruta.get('/getindex/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 0;
+        const pageSize = parseInt(req.query.pageSize) || 10;
+        const offset = page * pageSize;
 
-    const page = parseInt(req.query.page) || 0;
-    const pageSize = parseInt(req.query.pageSize) || 10;
-    // Calcula el offset
-    const offset = (page) * pageSize;
+        const iddolencias = parseInt(req.params.iddolencias) || 0;
+        const idplanta = parseInt(req.params.idplanta) || 0;
+        const te = parseInt(req.params.te) || 0;
+        const mate = parseInt(req.params.mate) || 0;
+        const terere = parseInt(req.params.terere) || 0;
 
-    await poha.findAll({
-        limit: pageSize, offset: offset,
-        include: [
-            { model: autor, },
-            {
-                model: poha_planta, required: true, separate: true, include: [{
+        // Fase 1: Obtener IDs de poha que coinciden con los filtros
+        const whereConditions = [];
+        if (te !== 0) whereConditions.push({ te: te });
+        if (mate !== 0) whereConditions.push({ mate: mate });
+        if (terere !== 0) whereConditions.push({ terere: terere });
+
+        const includesForFilter = [];
+        
+        if (idplanta !== 0) {
+            includesForFilter.push({
+                model: poha_planta,
+                required: true,
+                attributes: [],
+                include: [{
                     model: planta,
                     required: true,
-                    where: {
-                        [Op.and]: [
-                            req.params.idplanta != 0 ? { idplanta: req.params.idplanta } : 0 == 0
-                        ],
-                    },
+                    attributes: [],
+                    where: { idplanta: idplanta }
                 }]
-            },
-            {
-                model: dolencias_poha, required: true, separate: true, include: [{
+            });
+        }
+        
+        if (iddolencias !== 0) {
+            includesForFilter.push({
+                model: dolencias_poha,
+                required: true,
+                attributes: [],
+                include: [{
                     model: dolencias,
                     required: true,
-                    where: {
-                        [Op.and]: [
-                            req.params.iddolencias != 0 ? { iddolencias: req.params.iddolencias } : 0 == 0
-                        ],
-                    },
+                    attributes: [],
+                    where: { iddolencias: iddolencias }
                 }]
-            }
-        ],
-        where: {
-            [Op.and]: [
-                req.params.te != 0 ? { te: req.params.te } : 0 == 0,
-                req.params.mate != 0 ? { mate: req.params.mate } : 0 == 0,
-                req.params.terere != 0 ? { terere: req.params.terere } : 0 == 0,
-            ],
+            });
         }
-    }).then((response) => {
-        res.json(response);
-    }).catch((error) => {
-        console.error(error);
-        console.log(`Algo salió mal ${error}`);
-    });
+
+        const matchingPohas = await poha.findAll({
+            attributes: ['idpoha'],
+            include: includesForFilter,
+            where: whereConditions.length > 0 ? { [Op.and]: whereConditions } : {},
+            limit: pageSize,
+            offset: offset,
+            raw: true
+        });
+
+        const matchingIds = matchingPohas.map(p => p.idpoha);
+
+        if (matchingIds.length === 0) {
+            return res.json([]);
+        }
+
+        // Fase 2: Cargar los poha encontrados con TODAS sus relaciones
+        const fullPohas = await poha.findAll({
+            where: { idpoha: { [Op.in]: matchingIds } },
+            include: [
+                { model: autor },
+                { model: poha_planta, include: [{ model: planta }] },
+                { model: dolencias_poha, include: [{ model: dolencias }] }
+            ]
+        });
+
+        res.json(fullPohas);
+    } catch (error) {
+        console.error('Error en getindex:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
 })
 
 ruta.get('/get/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
-    await poha.findAll({
-        include: [
-            { model: autor },
-            {
-                model: poha_planta, required: true, include: [{
+    try {
+        const iddolencias = parseInt(req.params.iddolencias) || 0;
+        const idplanta = parseInt(req.params.idplanta) || 0;
+        const te = parseInt(req.params.te) || 0;
+        const mate = parseInt(req.params.mate) || 0;
+        const terere = parseInt(req.params.terere) || 0;
+
+        // Fase 1: Obtener IDs de poha que coinciden con los filtros
+        const whereConditions = [];
+        if (te !== 0) whereConditions.push({ te: te });
+        if (mate !== 0) whereConditions.push({ mate: mate });
+        if (terere !== 0) whereConditions.push({ terere: terere });
+
+        const includesForFilter = [];
+        
+        if (idplanta !== 0) {
+            includesForFilter.push({
+                model: poha_planta,
+                required: true,
+                attributes: [],
+                include: [{
                     model: planta,
                     required: true,
-                    where: {
-                        [Op.and]: [
-                            req.params.idplanta != 0 ? { idplanta: req.params.idplanta } : 0 == 0
-                        ],
-                    },
+                    attributes: [],
+                    where: { idplanta: idplanta }
                 }]
-            },
-            {
-                model: dolencias_poha, required: true, include: [{
+            });
+        }
+        
+        if (iddolencias !== 0) {
+            includesForFilter.push({
+                model: dolencias_poha,
+                required: true,
+                attributes: [],
+                include: [{
                     model: dolencias,
                     required: true,
-                    where: {
-                        [Op.and]: [
-                            req.params.iddolencias != 0 ? { iddolencias: req.params.iddolencias } : 0 == 0
-                        ],
-                    },
+                    attributes: [],
+                    where: { iddolencias: iddolencias }
                 }]
-            }
-        ],
-        where: {
-            [Op.and]: [
-                req.params.te != 0 ? { te: req.params.te } : 0 == 0,
-                req.params.mate != 0 ? { mate: req.params.mate } : 0 == 0,
-                req.params.terere != 0 ? { terere: req.params.terere } : 0 == 0,
-            ],
+            });
         }
-    }).then((response) => {
-        res.json(response);
-    }).catch((error) => {
-        console.error(error);
-        console.log(`Algo salió mal ${error}`);
-    });
+
+        const matchingPohas = await poha.findAll({
+            attributes: ['idpoha'],
+            include: includesForFilter,
+            where: whereConditions.length > 0 ? { [Op.and]: whereConditions } : {},
+            raw: true
+        });
+
+        const matchingIds = matchingPohas.map(p => p.idpoha);
+
+        if (matchingIds.length === 0) {
+            return res.json([]);
+        }
+
+        // Fase 2: Cargar los poha encontrados con TODAS sus relaciones
+        const fullPohas = await poha.findAll({
+            where: { idpoha: { [Op.in]: matchingIds } },
+            include: [
+                { model: autor },
+                { model: poha_planta, include: [{ model: planta }] },
+                { model: dolencias_poha, include: [{ model: dolencias }] }
+            ]
+        });
+
+        res.json(fullPohas);
+    } catch (error) {
+        console.error('Error en get con filtros:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
 })
 
 ruta.get('/get/:idpoha', async (req, res) => {
