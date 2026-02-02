@@ -1,6 +1,7 @@
 const express = require('express')
 const ruta = express.Router();
 const dolencias = require('../model/dolencias')
+const usuario = require('../model/usuario')
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
@@ -82,7 +83,10 @@ ruta.get('/get/', async (req, res) => {
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
         return;
     }
-    await dolencias.findAll({ ...(pagination || {}) }).then((response) => {
+    await dolencias.findAll({ 
+        where: { estado: 'AC' },
+        ...(pagination || {}) 
+    }).then((response) => {
         res.json(response);
     }).catch((error) => {
         console.error(error); 
@@ -101,11 +105,22 @@ ruta.get('/get/:iddolencias', async (req, res) => {
 
 ruta.post('/post/', async (req, res) => {
     try {
-        const { descripcion, estado } = req.body || {};
-        if (!isNonEmptyString(descripcion) || !isNonEmptyString(estado)) {
-            return res.status(400).json({ error: 'descripcion y estado son requeridos' });
+        const { descripcion, idusuario } = req.body || {};
+        if (!isNonEmptyString(descripcion)) {
+            return res.status(400).json({ error: 'descripcion es requerida' });
         }
-        await dolencias.create(req.body).then((response) => {
+
+        // Determinar estado según rol del usuario
+        let estado = 'PE'; // Por defecto, pendiente de aprobación
+        if (idusuario) {
+            const user = await usuario.findByPk(idusuario);
+            if (user && user.isAdmin === 1) {
+                estado = 'AC'; // Admin: activo directamente
+            }
+        }
+
+        const dolenciaData = { ...req.body, estado };
+        await dolencias.create(dolenciaData).then((response) => {
             invalidateByPrefix('dolencias');
             invalidateByPrefix('medicinales');
             res.json(response);
@@ -143,5 +158,94 @@ ruta.delete('/delete/:iddolencias', async (req, res) => {
     });
 })
 
+// ============================================================
+// ENDPOINTS DE MODERACIÓN (solo admin)
+// ============================================================
+
+ruta.get('/pendientes', async (req, res) => {
+    try {
+        const { idusuario } = req.query;
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+
+        // Verificar que el usuario es admin
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado' });
+        }
+
+        const pendientes = await dolencias.findAll({
+            where: { estado: 'PE' },
+            order: [['iddolencias', 'DESC']]
+        });
+
+        res.json(pendientes);
+    } catch (error) {
+        console.error('Error obteniendo dolencias pendientes:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+ruta.put('/aprobar/:iddolencias', async (req, res) => {
+    try {
+        const { idusuario } = req.body;
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+
+        // Verificar que el usuario es admin
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado' });
+        }
+
+        const [updated] = await dolencias.update(
+            { estado: 'AC' },
+            { where: { iddolencias: req.params.iddolencias, estado: 'PE' } }
+        );
+
+        if (updated === 0) {
+            return res.status(404).json({ error: 'Dolencia no encontrada o ya procesada' });
+        }
+
+        invalidateByPrefix('dolencias');
+        invalidateByPrefix('medicinales');
+        res.json({ message: 'Dolencia aprobada', iddolencias: req.params.iddolencias });
+    } catch (error) {
+        console.error('Error aprobando dolencia:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+ruta.put('/rechazar/:iddolencias', async (req, res) => {
+    try {
+        const { idusuario } = req.body;
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+
+        // Verificar que el usuario es admin
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado' });
+        }
+
+        const [updated] = await dolencias.update(
+            { estado: 'IN' },
+            { where: { iddolencias: req.params.iddolencias, estado: 'PE' } }
+        );
+
+        if (updated === 0) {
+            return res.status(404).json({ error: 'Dolencia no encontrada o ya procesada' });
+        }
+
+        invalidateByPrefix('dolencias');
+        res.json({ message: 'Dolencia rechazada', iddolencias: req.params.iddolencias });
+    } catch (error) {
+        console.error('Error rechazando dolencia:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
 
 module.exports = ruta;

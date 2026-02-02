@@ -6,6 +6,7 @@ const poha_planta = require('../model/poha_planta');
 const autor = require('../model/autor');
 const planta = require('../model/planta');
 const dolencias = require('../model/dolencias');
+const usuario = require('../model/usuario');
 const { Op } = require('sequelize');
 const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -45,7 +46,9 @@ ruta.get('/get/', async (req, res) => {
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
         return;
     }
+    // Solo devolver remedios activos (estado = 'AC')
     await poha.findAll({
+        where: { estado: 'AC' },
         ...(pagination || {}),
         include: [
             { model: autor },
@@ -75,7 +78,8 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) 
         const terere = parseInt(req.params.terere) || 0;
 
         // Fase 1: Obtener IDs de poha que coinciden con los filtros
-        const whereConditions = [];
+        // Solo remedios activos
+        const whereConditions = [{ estado: 'AC' }];
         if (te !== 0) whereConditions.push({ te: te });
         if (mate !== 0) whereConditions.push({ mate: mate });
         if (terere !== 0) whereConditions.push({ terere: terere });
@@ -151,7 +155,8 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
         const terere = parseInt(req.params.terere) || 0;
 
         // Fase 1: Obtener IDs de poha que coinciden con los filtros
-        const whereConditions = [];
+        // Solo remedios activos
+        const whereConditions = [{ estado: 'AC' }];
         if (te !== 0) whereConditions.push({ te: te });
         if (mate !== 0) whereConditions.push({ mate: mate });
         if (terere !== 0) whereConditions.push({ terere: terere });
@@ -233,8 +238,19 @@ ruta.get('/get/:idpoha', async (req, res) => {
 
 ruta.post('/post/', async (req, res) => {
     try {
-        // 1. Guardar poha
-        const nuevoPoha = await poha.create(req.body);
+        // Determinar estado según rol del usuario
+        let estado = 'PE'; // Por defecto, pendiente de aprobación
+        const { idusuario } = req.body || {};
+        if (idusuario) {
+            const user = await usuario.findByPk(idusuario);
+            if (user && user.isAdmin === 1) {
+                estado = 'AC'; // Admin: activo directamente
+            }
+        }
+
+        // 1. Guardar poha con el estado determinado
+        const pohaData = { ...req.body, estado };
+        const nuevoPoha = await poha.create(pohaData);
 
         // 2. Esperar a que se actualicen las vistas, o volver a consultar los datos enriquecidos
         const [datos] = await sequelize.query(`
@@ -342,6 +358,107 @@ ruta.delete('/delete/:idpoha', async (req, res) => {
     });
 
 })
+
+// ============================================================
+// ENDPOINTS DE MODERACIÓN
+// ============================================================
+
+// Listar remedios pendientes de aprobación (solo para admin)
+ruta.get('/pendientes', async (req, res) => {
+    try {
+        const { idusuario } = req.query;
+        
+        // Verificar que es admin
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+        
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado: se requiere rol de administrador' });
+        }
+
+        const pendientes = await poha.findAll({ 
+            where: { estado: 'PE' },
+            include: [
+                { model: autor },
+                { model: poha_planta, include: [{ model: planta }] },
+                { model: dolencias_poha, include: [{ model: dolencias }] }
+            ],
+            order: [['idpoha', 'DESC']]
+        });
+        res.json(pendientes);
+    } catch (error) {
+        console.error('Error obteniendo remedios pendientes:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// Aprobar remedio pendiente (cambiar estado de PE a AC)
+ruta.put('/aprobar/:idpoha', async (req, res) => {
+    try {
+        const { idusuario } = req.body || {};
+        
+        // Verificar que es admin
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+        
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado: se requiere rol de administrador' });
+        }
+
+        const result = await poha.update(
+            { estado: 'AC' }, 
+            { where: { idpoha: req.params.idpoha, estado: 'PE' } }
+        );
+        
+        if (result[0] === 0) {
+            return res.status(404).json({ error: 'Remedio no encontrado o ya aprobado' });
+        }
+
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
+        res.json({ message: 'Remedio aprobado exitosamente', affected: result[0] });
+    } catch (error) {
+        console.error('Error aprobando remedio:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// Rechazar remedio pendiente (marcar como inactivo)
+ruta.put('/rechazar/:idpoha', async (req, res) => {
+    try {
+        const { idusuario } = req.body || {};
+        
+        // Verificar que es admin
+        if (!idusuario) {
+            return res.status(400).json({ error: 'idusuario requerido' });
+        }
+        
+        const user = await usuario.findByPk(idusuario);
+        if (!user || user.isAdmin !== 1) {
+            return res.status(403).json({ error: 'Acceso denegado: se requiere rol de administrador' });
+        }
+
+        const result = await poha.update(
+            { estado: 'IN' }, 
+            { where: { idpoha: req.params.idpoha, estado: 'PE' } }
+        );
+        
+        if (result[0] === 0) {
+            return res.status(404).json({ error: 'Remedio no encontrado o ya procesado' });
+        }
+
+        invalidateByPrefix('poha');
+        invalidateByPrefix('medicinales');
+        res.json({ message: 'Remedio rechazado', affected: result[0] });
+    } catch (error) {
+        console.error('Error rechazando remedio:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
 
 
 module.exports = ruta;
