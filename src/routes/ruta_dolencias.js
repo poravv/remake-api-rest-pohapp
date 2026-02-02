@@ -56,6 +56,27 @@ ruta.get('/getsql/:descripcion', async (req, res) => {
         });
 })
 
+ruta.get('/usage', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                d.iddolencias,
+                d.descripcion,
+                d.estado,
+                COUNT(DISTINCT dp.idpoha) AS poha_count
+            FROM dolencias d
+            LEFT JOIN dolencias_poha dp ON dp.iddolencias = d.iddolencias
+            GROUP BY d.iddolencias, d.descripcion, d.estado
+        `;
+
+        const response = await database.query(query, { type: QueryTypes.SELECT });
+        res.json(response);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error obteniendo uso de dolencias' });
+    }
+});
+
 ruta.get('/get/', async (req, res) => {
     const pagination = parsePagination(req, res);
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
