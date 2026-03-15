@@ -1,7 +1,7 @@
 # Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Dependencies
 node_modules/
@@ -31,3 +31,5 @@ build/
 *.cert
 secrets.yml
 secrets.yaml
+k8s/backend-secrets.yaml
+k8s/*-secrets.yaml

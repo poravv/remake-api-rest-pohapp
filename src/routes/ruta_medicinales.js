@@ -2,6 +2,7 @@ const express = require('express')
 const ruta = express.Router();
 const database = require('../database')
 const { QueryTypes } = require('sequelize');
+const { validateIdPoha } = require('../middleware/validation/medicinales.validation');
 
 const parseIntParam = (value, name, res) => {
     const parsed = parseInt(value, 10);
@@ -44,44 +45,27 @@ ruta.get('/get/', async (req, res) => {
             replacements.limit = pagination.limit;
             replacements.offset = pagination.offset;
         }
-        await database.query(query, { type: QueryTypes.SELECT, replacements }).then((response) => {
-            res.json(response);
-        }).catch((error) => {
-            console.error(error); 
-            console.log(`Algo salió mal ${error}`);
-        });
+        const response = await database.query(query, { type: QueryTypes.SELECT, replacements });
+        res.json(response);
     } catch (error) {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
-
-
 })
 
-ruta.get('/getid/:idpoha', async (req, res) => {
+ruta.get('/getid/:idpoha', validateIdPoha, async (req, res) => {
     try {
-        const idpoha = parseIntParam(req.params.idpoha, 'idpoha', res);
-        if (idpoha === null) return;
+        const idpoha = parseInt(req.params.idpoha, 10);
         const query = `select * from vw_medicina where idpoha = :idpoha`;
-        await database
-            .query(query, { replacements: { idpoha }, type: QueryTypes.SELECT })
-            .then((response) => {
-            res.json(response);
-        }).catch((error) => {
-            console.error(error); 
-            console.log(`Algo salió mal ${error}`);
-        });
+        const response = await database.query(query, { replacements: { idpoha }, type: QueryTypes.SELECT });
+        res.json(response);
     } catch (error) {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
-
-
 })
 
 ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
-    //console.log("entra en get----")
-    //console.log(req.params)
     try {
         const iddolencias = parseIntParam(req.params.iddolencias, 'iddolencias', res);
         if (iddolencias === null) return;
@@ -127,10 +111,9 @@ ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
         res.json(rs_planta);
 
     } catch (error) {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
-
 })
 
 

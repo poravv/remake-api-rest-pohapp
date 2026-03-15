@@ -1,81 +1,75 @@
 const express = require('express')
 const ruta = express.Router();
-const usuario = require('../model/usuario');
+const usuarioService = require('../services/usuarioService');
+const {
+    validateCreateUsuario,
+    validateUpdateUsuario,
+    validateIdUsuario,
+    validateEmailParam,
+} = require('../middleware/validation/usuario.validation');
 
 ruta.get('/get/', async (req, res) => {
-    await usuario.findAll().then((response) => {
+    try {
+        const response = await usuarioService.getAllUsuarios();
         res.json(response);
-    }).catch((error) => {
+    } catch (error) {
         console.error(error);
-        console.log(`Algo salió mal ${error}`);
-    });
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
 })
 
-ruta.get('/get/:idusuario', async (req, res) => {
+ruta.get('/get/:idusuario', validateIdUsuario, async (req, res) => {
     try {
-        await usuario.findByPk(req.params.idusuario).then((response) => {
+        const response = await usuarioService.getUsuarioById(req.params.idusuario);
+        res.json(response);
+    } catch (error) {
+        console.error(error);
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+})
+
+ruta.get('/correo/:correo', validateEmailParam, async (req, res) => {
+    try {
+        const response = await usuarioService.getUsuarioByEmail(req.params.correo);
+        if (response) {
             res.json(response);
-        }).catch((error) => {
-            console.error(error);
-            console.log(`Algo salió mal ${error}`);
-        });
+        } else {
+            res.status(404).json({ message: 'Usuario no encontrado' });
+        }
     } catch (error) {
         console.error(error);
-        console.log(`Algo salió mal ${error}`);
+        res.status(error.statusCode || 500).json({ error: error.message });
     }
 })
 
-ruta.get('/correo/:correo', async (req, res) => {
+ruta.post('/post/', validateCreateUsuario, async (req, res) => {
     try {
-        await usuario.findOne({ where: { correo: req.params.correo } }).then((response) => {
-            if (response) {
-                res.json(response);
-            } else {
-                res.status(404).json({ message: 'Usuario no encontrado' });
-            }
-        }).catch((error) => {
-            console.error(error);
-            console.log(`Algo salió mal ${error}`);
-            res.status(500).json({ error: error.message });
-        });
+        const response = await usuarioService.createUsuario(req.body);
+        res.json(response);
     } catch (error) {
         console.error(error);
-        console.log(`Algo salió mal ${error}`);
-        res.status(500).json({ error: error.message });
+        res.status(error.statusCode || 500).json({ error: error.message });
     }
 })
 
-ruta.post('/post/', async (req, res) => {
+ruta.put('/put/:idusuario', validateUpdateUsuario, async (req, res) => {
     try {
-        await usuario.create(req.body).then((response) => {
-            res.json(response);
-        }).catch((error) => {
-            console.error(error);
-            console.log(`Algo salió mal ${error}`);
-        });
+        const response = await usuarioService.updateUsuario(req.params.idusuario, req.body);
+        res.json(response);
     } catch (error) {
         console.error(error);
-        console.log(`Algo salió mal ${error}`);
+        res.status(error.statusCode || 500).json({ error: error.message });
     }
-
 })
 
-ruta.put('/put/:idusuario', async (req, res) => {
-    await usuario.update(req.body, { where: { idusuario: req.params.idusuario } }).then((response) => {
+ruta.delete('/delete/:idusuario', validateIdUsuario, async (req, res) => {
+    try {
+        const response = await usuarioService.deleteUsuario(req.params.idusuario);
         res.json(response);
-    }).catch((error) => {
+    } catch (error) {
         console.error(error);
-        console.log(`Algo salió mal ${error}`);
-    });
-})
-
-ruta.delete('/delete/:idusuario', async (req, res) => {
-    await usuario.destroy({ where: { idusuario: req.params.idusuario } }).then((response) => {
-        res.json(response);
-    }).catch((error) => {
-        console.error(error);
-        console.log(`Algo salió mal ${error}`);
-    });
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
 })
 
 

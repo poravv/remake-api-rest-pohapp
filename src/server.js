@@ -9,11 +9,18 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { initRedis, isRedisReady, hasRedisConfig } = require('./services/cacheClient');
+const { errorHandler } = require('./middleware/errorHandler');
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
-app.use(cors());/*aplica permiso para todos los origenes*/
+const corsOrigins = process.env.CORS_ALLOWED_ORIGINS;
+if (corsOrigins) {
+  const allowedOrigins = corsOrigins.split(',').map(o => o.trim());
+  app.use(cors({ origin: allowedOrigins }));
+} else {
+  app.use(cors());
+}
 
 app.use(helmet({
     contentSecurityPolicy: false,
@@ -111,15 +118,7 @@ app.get('/readiness', (_req, res) => {
 
 app.use(rutas)
 
-// Manejador de errores centralizado
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-    console.error('❌ Error no controlado:', err);
-    res.status(err.status || 500).json({
-        error: 'Error interno del servidor',
-        message: err.message || 'Error desconocido',
-    });
-});
+app.use(errorHandler);
 
 app.listen(port, () => {
     console.log("App corriendo en el puerto: ", port)

@@ -19,10 +19,6 @@ const autor = database.define('autor',{
         type:DataTypes.DATE,
         allowNull:false
     },
-    apellido:{
-        type:DataTypes.STRING,
-        allowNull:false
-    },
     ciudad:{
         type:DataTypes.STRING,
         allowNull:false

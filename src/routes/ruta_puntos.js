@@ -3,60 +3,70 @@ const ruta = express.Router();
 const puntos = require('../model/puntos')
 const poha = require('../model/poha');
 const usuario = require('../model/usuario');
+const {
+    validateCreatePuntos,
+    validateUpdatePuntos,
+    validateIdPuntos,
+} = require('../middleware/validation/puntos.validation');
 
 ruta.get('/get/', async (req, res) => {
-    await puntos.findAll({
-        include: [
-            { model: poha },
-            { model: usuario }
-        ]
-    }).then((response) => {
+    try {
+        const response = await puntos.findAll({
+            include: [
+                { model: poha },
+                { model: usuario }
+            ]
+        });
         res.json(response);
-    }).catch((error) => {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
-    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
 })
 
-ruta.get('/get/:idpuntos', async (req, res) => {
-    await puntos.findByPk(req.params.idpuntos, {
-        include: [
-            { model: poha },
-            { model: usuario }
-        ]
-    }).then((response) => {
+ruta.get('/get/:idpuntos', validateIdPuntos, async (req, res) => {
+    try {
+        const response = await puntos.findByPk(req.params.idpuntos, {
+            include: [
+                { model: poha },
+                { model: usuario }
+            ]
+        });
         res.json(response);
-    }).catch((error) => {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
-    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
 })
 
-ruta.post('/post/', async (req, res) => {
-    await puntos.create(req.body).then((response) => {
+ruta.post('/post/', validateCreatePuntos, async (req, res) => {
+    try {
+        const response = await puntos.create(req.body);
         res.json(response);
-    }).catch((error) => {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
-    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
 })
 
-ruta.put('/put/:idpuntos', async (req, res) => {
-    await puntos.update(req.body, { where: { idpuntos: req.params.idpuntos } }).then((response) => {
+ruta.put('/put/:idpuntos', validateUpdatePuntos, async (req, res) => {
+    try {
+        const response = await puntos.update(req.body, { where: { idpuntos: req.params.idpuntos } });
         res.json(response);
-    }).catch((error) => {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
-    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
 })
 
-ruta.delete('/delete/:idpuntos', async (req, res) => {
-    await puntos.destroy({ where: { idpuntos: req.params.idpuntos } }).then((response) => {
+ruta.delete('/delete/:idpuntos', validateIdPuntos, async (req, res) => {
+    try {
+        const response = await puntos.destroy({ where: { idpuntos: req.params.idpuntos } });
         res.json(response);
-    }).catch((error) => {
-        console.error(error); 
-        console.log(`Algo salió mal ${error}`);
-    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
 })
 
 
