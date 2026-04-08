@@ -33,3 +33,7 @@ secrets.yml
 secrets.yaml
 k8s/backend-secrets.yaml
 k8s/*-secrets.yaml
+
+# Firebase service account
+firebase-service-account.json
+*-firebase-adminsdk-*.json

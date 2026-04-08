@@ -1,6 +1,7 @@
 const express = require('express')
 const ruta = express.Router();
 const dolenciasService = require('../services/dolenciasService');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreateDolencias,
     validateUpdateDolencias,
@@ -73,9 +74,9 @@ ruta.get('/get/:iddolencias', validateIdDolencias, async (req, res) => {
     }
 })
 
-ruta.post('/post/', validateCreateDolencias, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreateDolencias, async (req, res) => {
     try {
-        const response = await dolenciasService.createDolencias(req.body);
+        const response = await dolenciasService.createDolencias(req.body, req.user);
         res.json(response);
     } catch (error) {
         console.error(error);
@@ -83,7 +84,7 @@ ruta.post('/post/', validateCreateDolencias, async (req, res) => {
     }
 })
 
-ruta.put('/put/:iddolencias', validateUpdateDolencias, async (req, res) => {
+ruta.put('/put/:iddolencias', verifyToken, validateUpdateDolencias, async (req, res) => {
     if (!req.body || Object.keys(req.body).length === 0) {
         return res.status(400).json({ error: 'body requerido' });
     }
@@ -96,7 +97,7 @@ ruta.put('/put/:iddolencias', validateUpdateDolencias, async (req, res) => {
     }
 })
 
-ruta.delete('/delete/:iddolencias', validateIdDolencias, async (req, res) => {
+ruta.delete('/delete/:iddolencias', verifyToken, validateIdDolencias, async (req, res) => {
     try {
         const response = await dolenciasService.deleteDolencias(req.params.iddolencias);
         res.json(response);
@@ -110,9 +111,9 @@ ruta.delete('/delete/:iddolencias', validateIdDolencias, async (req, res) => {
 // ENDPOINTS DE MODERACION (solo admin)
 // ============================================================
 
-ruta.get('/pendientes', validatePendientes, async (req, res) => {
+ruta.get('/pendientes', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await dolenciasService.getPendingDolencias(req.query.idusuario);
+        const response = await dolenciasService.getPendingDolencias();
         res.json(response);
     } catch (error) {
         console.error('Error obteniendo dolencias pendientes:', error);
@@ -120,9 +121,9 @@ ruta.get('/pendientes', validatePendientes, async (req, res) => {
     }
 });
 
-ruta.put('/aprobar/:iddolencias', validateModeration, async (req, res) => {
+ruta.put('/aprobar/:iddolencias', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await dolenciasService.approveDolencias(req.params.iddolencias, req.body.idusuario);
+        const response = await dolenciasService.approveDolencias(req.params.iddolencias);
         res.json(response);
     } catch (error) {
         console.error('Error aprobando dolencia:', error);
@@ -130,9 +131,9 @@ ruta.put('/aprobar/:iddolencias', validateModeration, async (req, res) => {
     }
 });
 
-ruta.put('/rechazar/:iddolencias', validateModeration, async (req, res) => {
+ruta.put('/rechazar/:iddolencias', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await dolenciasService.rejectDolencias(req.params.iddolencias, req.body.idusuario);
+        const response = await dolenciasService.rejectDolencias(req.params.iddolencias);
         res.json(response);
     } catch (error) {
         console.error('Error rechazando dolencia:', error);

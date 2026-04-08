@@ -1,6 +1,7 @@
 const express = require('express')
 const ruta = express.Router();
 const plantaService = require('../services/plantaService');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreatePlanta,
     validateUpdatePlanta,
@@ -83,9 +84,9 @@ ruta.get('/get/:idplanta', validateIdPlanta, async (req, res) => {
     }
 })
 
-ruta.post('/post/', validateCreatePlanta, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreatePlanta, async (req, res) => {
     try {
-        const response = await plantaService.createPlanta(req.body);
+        const response = await plantaService.createPlanta(req.body, req.user);
         res.json(response);
     } catch (error) {
         console.error(error);
@@ -93,7 +94,7 @@ ruta.post('/post/', validateCreatePlanta, async (req, res) => {
     }
 })
 
-ruta.put('/put/:idplanta', validateUpdatePlanta, async (req, res) => {
+ruta.put('/put/:idplanta', verifyToken, validateUpdatePlanta, async (req, res) => {
     if (!req.body || Object.keys(req.body).length === 0) {
         return res.status(400).json({ error: 'body requerido' });
     }
@@ -106,7 +107,7 @@ ruta.put('/put/:idplanta', validateUpdatePlanta, async (req, res) => {
     }
 })
 
-ruta.delete('/delete/:idplanta', validateIdPlanta, async (req, res) => {
+ruta.delete('/delete/:idplanta', verifyToken, validateIdPlanta, async (req, res) => {
     try {
         const response = await plantaService.deletePlanta(req.params.idplanta);
         res.json(response);
@@ -121,9 +122,9 @@ ruta.delete('/delete/:idplanta', validateIdPlanta, async (req, res) => {
 // ============================================================
 
 // Listar plantas pendientes de aprobacion (solo para admin)
-ruta.get('/pendientes', validatePendientes, async (req, res) => {
+ruta.get('/pendientes', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await plantaService.getPendingPlantas(req.query.idusuario);
+        const response = await plantaService.getPendingPlantas();
         res.json(response);
     } catch (error) {
         console.error('Error obteniendo plantas pendientes:', error);
@@ -132,9 +133,9 @@ ruta.get('/pendientes', validatePendientes, async (req, res) => {
 });
 
 // Aprobar planta pendiente (cambiar estado de PE a AC)
-ruta.put('/aprobar/:idplanta', validateModeration, async (req, res) => {
+ruta.put('/aprobar/:idplanta', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await plantaService.approvePlanta(req.params.idplanta, req.body.idusuario);
+        const response = await plantaService.approvePlanta(req.params.idplanta);
         res.json(response);
     } catch (error) {
         console.error('Error aprobando planta:', error);
@@ -143,9 +144,9 @@ ruta.put('/aprobar/:idplanta', validateModeration, async (req, res) => {
 });
 
 // Rechazar planta pendiente (eliminar o marcar como inactiva)
-ruta.put('/rechazar/:idplanta', validateModeration, async (req, res) => {
+ruta.put('/rechazar/:idplanta', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await plantaService.rejectPlanta(req.params.idplanta, req.body.idusuario);
+        const response = await plantaService.rejectPlanta(req.params.idplanta);
         res.json(response);
     } catch (error) {
         console.error('Error rechazando planta:', error);

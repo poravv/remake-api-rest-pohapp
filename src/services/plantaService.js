@@ -1,5 +1,4 @@
 const planta = require('../model/planta');
-const usuario = require('../model/usuario');
 const database = require('../database');
 const { QueryTypes } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
@@ -59,16 +58,11 @@ async function getPlantaById(idplanta) {
     return planta.findByPk(idplanta);
 }
 
-async function createPlanta(data) {
-    const { idusuario } = data;
-
-    // Determine estado based on user role
+async function createPlanta(data, authUser) {
+    // Determine estado based on authenticated user role
     let estado = 'PE';
-    if (idusuario) {
-        const user = await usuario.findByPk(idusuario);
-        if (user && user.isAdmin === 1) {
-            estado = 'AC';
-        }
+    if (authUser && authUser.isAdmin === 1) {
+        estado = 'AC';
     }
 
     const plantaData = { ...data, estado };
@@ -92,31 +86,14 @@ async function deletePlanta(idplanta) {
     return result;
 }
 
-async function checkAdmin(idusuario) {
-    const user = await usuario.findByPk(idusuario);
-    return user && user.isAdmin === 1;
-}
-
-async function getPendingPlantas(idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado: se requiere rol de administrador');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function getPendingPlantas() {
     return planta.findAll({
         where: { estado: 'PE' },
         order: [['idplanta', 'DESC']],
     });
 }
 
-async function approvePlanta(idplanta, idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado: se requiere rol de administrador');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function approvePlanta(idplanta) {
     const result = await planta.update(
         { estado: 'AC' },
         { where: { idplanta, estado: 'PE' } },
@@ -133,13 +110,7 @@ async function approvePlanta(idplanta, idusuario) {
     return { message: 'Planta aprobada exitosamente', affected: result[0] };
 }
 
-async function rejectPlanta(idplanta, idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado: se requiere rol de administrador');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function rejectPlanta(idplanta) {
     const result = await planta.update(
         { estado: 'IN' },
         { where: { idplanta, estado: 'PE' } },

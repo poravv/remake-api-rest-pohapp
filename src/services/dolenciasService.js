@@ -1,5 +1,4 @@
 const dolencias = require('../model/dolencias');
-const usuario = require('../model/usuario');
 const database = require('../database');
 const { QueryTypes } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
@@ -36,16 +35,11 @@ async function getDolenciasById(iddolencias) {
     return dolencias.findByPk(iddolencias);
 }
 
-async function createDolencias(data) {
-    const { idusuario } = data;
-
-    // Determine estado based on user role
+async function createDolencias(data, authUser) {
+    // Determine estado based on authenticated user role
     let estado = 'PE';
-    if (idusuario) {
-        const user = await usuario.findByPk(idusuario);
-        if (user && user.isAdmin === 1) {
-            estado = 'AC';
-        }
+    if (authUser && authUser.isAdmin === 1) {
+        estado = 'AC';
     }
 
     const dolenciaData = { ...data, estado };
@@ -69,31 +63,14 @@ async function deleteDolencias(iddolencias) {
     return result;
 }
 
-async function checkAdmin(idusuario) {
-    const user = await usuario.findByPk(idusuario);
-    return user && user.isAdmin === 1;
-}
-
-async function getPendingDolencias(idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function getPendingDolencias() {
     return dolencias.findAll({
         where: { estado: 'PE' },
         order: [['iddolencias', 'DESC']],
     });
 }
 
-async function approveDolencias(iddolencias, idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function approveDolencias(iddolencias) {
     const [updated] = await dolencias.update(
         { estado: 'AC' },
         { where: { iddolencias, estado: 'PE' } },
@@ -110,13 +87,7 @@ async function approveDolencias(iddolencias, idusuario) {
     return { message: 'Dolencia aprobada', iddolencias };
 }
 
-async function rejectDolencias(iddolencias, idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function rejectDolencias(iddolencias) {
     const [updated] = await dolencias.update(
         { estado: 'IN' },
         { where: { iddolencias, estado: 'PE' } },

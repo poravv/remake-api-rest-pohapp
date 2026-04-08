@@ -1,0 +1,43 @@
+# One-time Job to promote a Firebase user to admin role in the database.
+#
+# Usage:
+#   kubectl apply -f k8s/setup-admin-job.yaml
+#
+# To re-run, delete the previous job first:
+#   kubectl delete job pohapp-setup-admin -n pohapp-backend
+#   kubectl apply -f k8s/setup-admin-job.yaml
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pohapp-setup-admin
+  namespace: pohapp-backend
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: setup-admin
+          image: ghcr.io/poravv/remake-api-rest-pohapp:latest
+          imagePullPolicy: Always
+          command:
+            - node
+            - src/scripts/setup-admin.js
+            - andyvercha@gmail.com
+          envFrom:
+            - configMapRef:
+                name: pohapp-backend-config
+            - secretRef:
+                name: pohapp-backend-env-secrets
+          volumeMounts:
+            - name: firebase-sa
+              mountPath: /etc/firebase/service-account.json
+              subPath: service-account.json
+              readOnly: true
+      volumes:
+        - name: firebase-sa
+          secret:
+            secretName: firebase-service-account
+      imagePullSecrets:
+        - name: ghcr-secret

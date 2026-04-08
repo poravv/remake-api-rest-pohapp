@@ -1,6 +1,7 @@
 const express = require('express')
 const ruta = express.Router();
 const pohaService = require('../services/pohaService');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreatePoha,
     validateUpdatePoha,
@@ -102,9 +103,9 @@ ruta.get('/get/:idpoha', validateIdPoha, async (req, res) => {
     }
 })
 
-ruta.post('/post/', validateCreatePoha, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreatePoha, async (req, res) => {
     try {
-        const response = await pohaService.createPoha(req.body);
+        const response = await pohaService.createPoha(req.body, req.user);
         res.json(response);
     } catch (error) {
         console.error('Error al guardar poha con embedding:', error);
@@ -112,7 +113,7 @@ ruta.post('/post/', validateCreatePoha, async (req, res) => {
     }
 });
 
-ruta.put('/put/:idpoha', validateUpdatePoha, async (req, res) => {
+ruta.put('/put/:idpoha', verifyToken, validateUpdatePoha, async (req, res) => {
     try {
         const response = await pohaService.updatePoha(req.params.idpoha, req.body);
         res.json(response);
@@ -122,7 +123,7 @@ ruta.put('/put/:idpoha', validateUpdatePoha, async (req, res) => {
     }
 })
 
-ruta.delete('/delete/:idpoha', validateIdPoha, async (req, res) => {
+ruta.delete('/delete/:idpoha', verifyToken, validateIdPoha, async (req, res) => {
     try {
         const response = await pohaService.deletePoha(req.params.idpoha);
         res.json(response);
@@ -137,9 +138,9 @@ ruta.delete('/delete/:idpoha', validateIdPoha, async (req, res) => {
 // ============================================================
 
 // Listar remedios pendientes de aprobacion (solo para admin)
-ruta.get('/pendientes', validatePendientes, async (req, res) => {
+ruta.get('/pendientes', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await pohaService.getPendingPoha(req.query.idusuario);
+        const response = await pohaService.getPendingPoha();
         res.json(response);
     } catch (error) {
         console.error('Error obteniendo remedios pendientes:', error);
@@ -148,9 +149,9 @@ ruta.get('/pendientes', validatePendientes, async (req, res) => {
 });
 
 // Aprobar remedio pendiente (cambiar estado de PE a AC)
-ruta.put('/aprobar/:idpoha', validateModeration, async (req, res) => {
+ruta.put('/aprobar/:idpoha', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await pohaService.approvePoha(req.params.idpoha, req.body.idusuario);
+        const response = await pohaService.approvePoha(req.params.idpoha);
         res.json(response);
     } catch (error) {
         console.error('Error aprobando remedio:', error);
@@ -159,9 +160,9 @@ ruta.put('/aprobar/:idpoha', validateModeration, async (req, res) => {
 });
 
 // Rechazar remedio pendiente (marcar como inactivo)
-ruta.put('/rechazar/:idpoha', validateModeration, async (req, res) => {
+ruta.put('/rechazar/:idpoha', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const response = await pohaService.rejectPoha(req.params.idpoha, req.body.idusuario);
+        const response = await pohaService.rejectPoha(req.params.idpoha);
         res.json(response);
     } catch (error) {
         console.error('Error rechazando remedio:', error);

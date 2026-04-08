@@ -25,6 +25,10 @@ data:
   MINIO_SIGNING_HOST: "minpoint.mindtechpy.net"
   MINIO_REGION: "py-east-1"
 
+  # Firebase Configuration
+  FIREBASE_PROJECT_ID: "pohapp-8f1ab"
+  FIREBASE_SERVICE_ACCOUNT_PATH: "/etc/firebase/service-account.json"
+
   # Redis / Cache
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"

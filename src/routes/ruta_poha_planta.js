@@ -2,6 +2,7 @@ const express = require('express')
 const ruta = express.Router();
 const poha_planta = require('../model/poha_planta')
 const { invalidateByPrefix } = require('../middleware/cache');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreatePohaPlanta,
     validateUpdatePohaPlanta,
@@ -29,7 +30,7 @@ ruta.get('/get/:idpoha_planta', validateIdPohaPlanta, async (req, res) => {
     }
 })
 
-ruta.post('/post/', validateCreatePohaPlanta, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreatePohaPlanta, async (req, res) => {
     try {
         const response = await poha_planta.create(req.body);
         invalidateByPrefix('poha');
@@ -41,7 +42,7 @@ ruta.post('/post/', validateCreatePohaPlanta, async (req, res) => {
     }
 })
 
-ruta.put('/put/:idpoha_planta', validateUpdatePohaPlanta, async (req, res) => {
+ruta.put('/put/:idpoha_planta', verifyToken, validateUpdatePohaPlanta, async (req, res) => {
     try {
         const response = await poha_planta.update(req.body, { where: { idpoha_planta: req.params.idpoha_planta } });
         invalidateByPrefix('poha');
@@ -53,7 +54,7 @@ ruta.put('/put/:idpoha_planta', validateUpdatePohaPlanta, async (req, res) => {
     }
 })
 
-ruta.delete('/delete/:idpoha_planta', validateIdPohaPlanta, async (req, res) => {
+ruta.delete('/delete/:idpoha_planta', verifyToken, validateIdPohaPlanta, async (req, res) => {
     try {
         const response = await poha_planta.destroy({ where: { idpoha_planta: req.params.idpoha_planta } });
         invalidateByPrefix('poha');
@@ -66,7 +67,7 @@ ruta.delete('/delete/:idpoha_planta', validateIdPohaPlanta, async (req, res) => 
 })
 
 // Eliminar todas las relaciones por poha+usuario (util para edicion segura)
-ruta.delete('/delete-by-poha/:idpoha/:idusuario', validateDeleteByPoha, async (req, res) => {
+ruta.delete('/delete-by-poha/:idpoha/:idusuario', verifyToken, validateDeleteByPoha, async (req, res) => {
     try {
         const { idpoha, idusuario } = req.params;
         const response = await poha_planta.destroy({ where: { idpoha, idusuario } });

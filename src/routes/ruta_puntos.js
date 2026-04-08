@@ -3,6 +3,7 @@ const ruta = express.Router();
 const puntos = require('../model/puntos')
 const poha = require('../model/poha');
 const usuario = require('../model/usuario');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreatePuntos,
     validateUpdatePuntos,
@@ -39,7 +40,7 @@ ruta.get('/get/:idpuntos', validateIdPuntos, async (req, res) => {
     }
 })
 
-ruta.post('/post/', validateCreatePuntos, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreatePuntos, async (req, res) => {
     try {
         const response = await puntos.create(req.body);
         res.json(response);
@@ -49,7 +50,7 @@ ruta.post('/post/', validateCreatePuntos, async (req, res) => {
     }
 })
 
-ruta.put('/put/:idpuntos', validateUpdatePuntos, async (req, res) => {
+ruta.put('/put/:idpuntos', verifyToken, validateUpdatePuntos, async (req, res) => {
     try {
         const response = await puntos.update(req.body, { where: { idpuntos: req.params.idpuntos } });
         res.json(response);
@@ -59,7 +60,7 @@ ruta.put('/put/:idpuntos', validateUpdatePuntos, async (req, res) => {
     }
 })
 
-ruta.delete('/delete/:idpuntos', validateIdPuntos, async (req, res) => {
+ruta.delete('/delete/:idpuntos', verifyToken, validateIdPuntos, async (req, res) => {
     try {
         const response = await puntos.destroy({ where: { idpuntos: req.params.idpuntos } });
         res.json(response);

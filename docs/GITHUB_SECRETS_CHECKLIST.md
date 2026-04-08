@@ -44,6 +44,26 @@ Ir a: `https://github.com/poravv/remake-api-rest-pohapp/settings/secrets/actions
 | `MYSQL_PASSWORD` | `pohapp_pass_2025_seguro` | ⚠️ Verificar |
 | `MYSQL_DATABASE` | `db-pohapp` | ⚠️ Verificar |
 
+### Secrets de Firebase (NUEVO)
+
+| Secret Name | Descripcion | Estado |
+|------------|-------------|--------|
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Base64-encoded Firebase service account JSON | ⬜ Pendiente |
+
+**Como generar el valor:**
+
+```bash
+# 1. Codificar el archivo JSON de la service account en base64
+cat pohapp-8f1ab-firebase-adminsdk-1tllf-2ab153afae.json | base64 | pbcopy
+
+# 2. Agregar como GitHub Secret con el nombre FIREBASE_SERVICE_ACCOUNT_JSON
+#    El workflow lo decodifica automaticamente durante el deploy
+```
+
+> **Nota:** El workflow decodifica el base64 y crea un Kubernetes secret
+> `firebase-service-account` que se monta como volumen en el pod del backend
+> en la ruta `/etc/firebase/service-account.json`.
+
 ### Secrets de GitHub Container Registry
 
 | Secret Name | Estado |
@@ -56,7 +76,7 @@ Ir a: `https://github.com/poravv/remake-api-rest-pohapp/settings/secrets/actions
 # 1. Ir a la página de secrets
 open https://github.com/poravv/remake-api-rest-pohapp/settings/secrets/actions
 
-# 2. Verificar que existan estos secrets (deberías ver 21 secrets en total):
+# 2. Verificar que existan estos secrets (deberías ver 22 secrets en total):
 # Base de Datos (6):
 #   - DB_HOST
 #   - DB_PORT
@@ -84,6 +104,9 @@ open https://github.com/poravv/remake-api-rest-pohapp/settings/secrets/actions
 #   - MINIO_HOST
 #   - MINIO_ENDPOINT
 #   - MINIO_REGION
+#
+# Firebase (1):
+#   - FIREBASE_SERVICE_ACCOUNT_JSON
 #
 # GitHub (1):
 #   - GHCR_PAT

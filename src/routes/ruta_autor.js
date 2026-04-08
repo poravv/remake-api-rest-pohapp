@@ -1,6 +1,7 @@
 const express = require('express');
 const ruta = express.Router();
 const autor = require('../model/autor');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreateAutor,
     validateUpdateAutor,
@@ -27,7 +28,7 @@ ruta.get('/get/:idautor', validateIdAutor, async (req, res) => {
     }
 })
 
-ruta.post('/post/', validateCreateAutor, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreateAutor, async (req, res) => {
     try {
         const response = await autor.create(req.body);
         res.json(response);
@@ -37,7 +38,7 @@ ruta.post('/post/', validateCreateAutor, async (req, res) => {
     }
 })
 
-ruta.put('/put/:idautor', validateUpdateAutor, async (req, res) => {
+ruta.put('/put/:idautor', verifyToken, validateUpdateAutor, async (req, res) => {
     try {
         const response = await autor.update(req.body, { where: { idautor: req.params.idautor } });
         res.json(response);
@@ -47,7 +48,7 @@ ruta.put('/put/:idautor', validateUpdateAutor, async (req, res) => {
     }
 })
 
-ruta.delete('/delete/:idautor', validateIdAutor, async (req, res) => {
+ruta.delete('/delete/:idautor', verifyToken, validateIdAutor, async (req, res) => {
     try {
         const response = await autor.destroy({ where: { idautor: req.params.idautor } });
         res.json(response);

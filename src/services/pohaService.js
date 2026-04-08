@@ -4,7 +4,6 @@ const poha_planta = require('../model/poha_planta');
 const autor = require('../model/autor');
 const planta = require('../model/planta');
 const dolencias = require('../model/dolencias');
-const usuario = require('../model/usuario');
 const { Op } = require('sequelize');
 const { OpenAI } = require('openai');
 const sequelize = require('../database');
@@ -120,15 +119,11 @@ async function getPohaFilteredPaginated(filters, page, pageSize) {
     });
 }
 
-async function createPoha(data) {
-    // Determine estado based on user role
+async function createPoha(data, authUser) {
+    // Determine estado based on authenticated user role
     let estado = 'PE';
-    const { idusuario } = data;
-    if (idusuario) {
-        const user = await usuario.findByPk(idusuario);
-        if (user && user.isAdmin === 1) {
-            estado = 'AC';
-        }
+    if (authUser && authUser.isAdmin === 1) {
+        estado = 'AC';
     }
 
     const pohaData = { ...data, estado };
@@ -210,18 +205,7 @@ async function deletePoha(idpoha) {
     return result;
 }
 
-async function checkAdmin(idusuario) {
-    const user = await usuario.findByPk(idusuario);
-    return user && user.isAdmin === 1;
-}
-
-async function getPendingPoha(idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado: se requiere rol de administrador');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function getPendingPoha() {
     return poha.findAll({
         where: { estado: 'PE' },
         include: FULL_INCLUDES,
@@ -229,13 +213,7 @@ async function getPendingPoha(idusuario) {
     });
 }
 
-async function approvePoha(idpoha, idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado: se requiere rol de administrador');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function approvePoha(idpoha) {
     const result = await poha.update(
         { estado: 'AC' },
         { where: { idpoha, estado: 'PE' } },
@@ -252,13 +230,7 @@ async function approvePoha(idpoha, idusuario) {
     return { message: 'Remedio aprobado exitosamente', affected: result[0] };
 }
 
-async function rejectPoha(idpoha, idusuario) {
-    if (!await checkAdmin(idusuario)) {
-        const err = new Error('Acceso denegado: se requiere rol de administrador');
-        err.statusCode = 403;
-        throw err;
-    }
-
+async function rejectPoha(idpoha) {
     const result = await poha.update(
         { estado: 'IN' },
         { where: { idpoha, estado: 'PE' } },

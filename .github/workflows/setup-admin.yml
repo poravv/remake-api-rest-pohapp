@@ -1,0 +1,61 @@
+name: Setup Admin User
+
+on:
+  workflow_dispatch:
+    inputs:
+      admin_email:
+        description: 'Email of the Firebase user to promote to admin'
+        required: true
+        default: 'andyvercha@gmail.com'
+
+permissions:
+  contents: read
+
+env:
+  NAMESPACE: pohapp-backend
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  setup-admin:
+    runs-on: self-hosted
+    name: Promote user to admin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get latest image tag
+        run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Delete previous job if exists
+        run: |
+          kubectl delete job pohapp-setup-admin -n ${{ env.NAMESPACE }} --ignore-not-found=true
+
+      - name: Run setup-admin job
+        run: |
+          set -euo pipefail
+
+          # Render the job manifest with the correct email and image tag
+          sed "s|andyvercha@gmail.com|${{ github.event.inputs.admin_email }}|g" \
+            k8s/setup-admin-job.yaml | \
+          sed "s|ghcr.io/poravv/remake-api-rest-pohapp:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA}|g" | \
+          kubectl apply -f -
+
+      - name: Wait for job completion
+        run: |
+          set -euo pipefail
+          echo "Waiting for setup-admin job to complete..."
+          kubectl wait --for=condition=complete job/pohapp-setup-admin \
+            -n ${{ env.NAMESPACE }} --timeout=120s || {
+            echo "Job did not complete successfully. Checking logs..."
+            kubectl logs job/pohapp-setup-admin -n ${{ env.NAMESPACE }} --tail=50
+            exit 1
+          }
+
+      - name: Show job logs
+        if: always()
+        run: |
+          echo "Setup Admin Job Logs:"
+          echo "====================="
+          kubectl logs job/pohapp-setup-admin -n ${{ env.NAMESPACE }} --tail=100 || true

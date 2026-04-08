@@ -2,6 +2,7 @@ const express = require('express')
 const ruta = express.Router();
 const dolencias_poha = require('../model/dolencias_poha')
 const { invalidateByPrefix } = require('../middleware/cache');
+const { verifyToken, requireAdmin, optionalAuth } = require('../middleware/auth');
 const {
     validateCreateDolenciasPoha,
     validateUpdateDolenciasPoha,
@@ -29,7 +30,7 @@ ruta.get('/get/:iddolencias_poha', validateIdDolenciasPoha, async (req, res) => 
     }
 })
 
-ruta.post('/post/', validateCreateDolenciasPoha, async (req, res) => {
+ruta.post('/post/', verifyToken, validateCreateDolenciasPoha, async (req, res) => {
     try {
         const response = await dolencias_poha.create(req.body);
         invalidateByPrefix('poha');
@@ -41,7 +42,7 @@ ruta.post('/post/', validateCreateDolenciasPoha, async (req, res) => {
     }
 })
 
-ruta.put('/put/:iddolencias_poha', validateUpdateDolenciasPoha, async (req, res) => {
+ruta.put('/put/:iddolencias_poha', verifyToken, validateUpdateDolenciasPoha, async (req, res) => {
     try {
         const response = await dolencias_poha.update(req.body, { where: { iddolencias_poha: req.params.iddolencias_poha } });
         invalidateByPrefix('poha');
@@ -53,7 +54,7 @@ ruta.put('/put/:iddolencias_poha', validateUpdateDolenciasPoha, async (req, res)
     }
 })
 
-ruta.delete('/delete/:iddolencias_poha', validateIdDolenciasPoha, async (req, res) => {
+ruta.delete('/delete/:iddolencias_poha', verifyToken, validateIdDolenciasPoha, async (req, res) => {
     try {
         const response = await dolencias_poha.destroy({ where: { iddolencias_poha: req.params.iddolencias_poha } });
         invalidateByPrefix('poha');
@@ -66,7 +67,7 @@ ruta.delete('/delete/:iddolencias_poha', validateIdDolenciasPoha, async (req, re
 })
 
 // Eliminar todas las relaciones por poha+usuario (util para edicion segura)
-ruta.delete('/delete-by-poha/:idpoha/:idusuario', validateDeleteByPoha, async (req, res) => {
+ruta.delete('/delete-by-poha/:idpoha/:idusuario', verifyToken, validateDeleteByPoha, async (req, res) => {
     try {
         const { idpoha, idusuario } = req.params;
         const response = await dolencias_poha.destroy({ where: { idpoha, idusuario } });

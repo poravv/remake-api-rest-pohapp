@@ -13,6 +13,7 @@ const queryNLPExplica = require('./routes/queryNLPExplica');
 const queryNlpRoute = require('./routes/queryNLP');
 const chatHistorial = require('./routes/chatHistorial');
 const imagenes = require('./routes/ruta_imagenes');
+const adminRoutes = require('./routes/ruta_admin');
 const { signMinioUrls } = require('./middleware/signImages');
 const { cacheMiddleware } = require('./middleware/cache');
 const rateLimit = require('express-rate-limit');
@@ -43,6 +44,7 @@ try {
     routes.use(`/api/pohapp/query-nlp/preview`, aiLimiter, signMinioUrls, queryNlpRoute);
     routes.use(`/api/pohapp/chat/historial`, chatHistorial);
     routes.use('/api/pohapp/imagenes', imagenes);
+    routes.use('/api/pohapp/admin', adminRoutes);
 } catch (error) {
     console.log(`Algo salió mal ${error}`);
     //res.json({state:"error",message:"ruta incorrecta"});
