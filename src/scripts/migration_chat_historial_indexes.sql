@@ -17,10 +17,12 @@ SET @has_ft := (
     AND INDEX_NAME   = 'ft_chat_historial_q_r'
 );
 
+-- FULLTEXT requires LOCK=SHARED in MySQL 8 (reads OK during creation,
+-- writes blocked briefly). Not LOCK=NONE — that path is unsupported for FULLTEXT.
 SET @sql := IF(@has_ft = 0,
   'ALTER TABLE chat_historial
      ADD FULLTEXT INDEX ft_chat_historial_q_r (pregunta, respuesta) WITH PARSER ngram,
-     ALGORITHM=INPLACE, LOCK=NONE',
+     ALGORITHM=INPLACE, LOCK=SHARED',
   'SELECT "ft_chat_historial_q_r already exists" AS info');
 
 PREPARE stmt FROM @sql;
