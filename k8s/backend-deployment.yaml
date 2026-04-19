@@ -172,19 +172,22 @@ spec:
             port:
               number: 3000
 ---
-# 301 redirect for legacy / manual URLs that omit the /pohapp prefix.
-# Example: https://back.mindtechpy.net/api/pohapp/docs/
-#   → 301 https://back.mindtechpy.net/pohapp/api/pohapp/docs/
-# No CORS/rewrite annotations — the main ingress handles them after the hop.
+# Alias ingress: expose /api/pohapp/* directly (without the /pohapp
+# prefix) for legacy / manual URLs. Express already routes on
+# /api/pohapp/* internally, so we proxy as-is — no rewrite needed.
+# The main ingress keeps the /pohapp/* path mounted for the mobile app
+# and existing consumers; this companion rule just makes bare /api/pohapp
+# URLs resolve to the same backend instead of returning nginx 404.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: pohapp-backend-ingress-redirect
+  name: pohapp-backend-ingress-alias
   namespace: pohapp-backend
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/permanent-redirect: "https://back.mindtechpy.net/pohapp$request_uri"
-    nginx.ingress.kubernetes.io/permanent-redirect-code: "301"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
   ingressClassName: nginx
   tls:
