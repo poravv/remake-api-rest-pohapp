@@ -30,6 +30,29 @@ const parsePagination = (req, res) => {
     };
 };
 
+/**
+ * @swagger
+ * /api/pohapp/planta/getsql/{nombre}:
+ *   get:
+ *     tags: [Plantas]
+ *     summary: Buscar plantas por nombre (LIKE)
+ *     parameters:
+ *       - name: nombre
+ *         in: path
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       '200':
+ *         description: Lista de plantas coincidentes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/PlantaPublic' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/getsql/:nombre', validateSearchNombre, async (req, res) => {
     try {
         const response = await plantaService.searchByNombre(req.params.nombre.trim());
@@ -40,6 +63,23 @@ ruta.get('/getsql/:nombre', validateSearchNombre, async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/planta/getlimit:
+ *   get:
+ *     tags: [Plantas]
+ *     summary: Lista plantas con límite fijo (top-N interno)
+ *     responses:
+ *       '200':
+ *         description: Lista de plantas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/PlantaPublic' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/getlimit/', async (req, res) => {
     try {
         const response = await plantaService.getPlantasLimited();
@@ -50,6 +90,28 @@ ruta.get('/getlimit/', async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/planta/usage:
+ *   get:
+ *     tags: [Plantas]
+ *     summary: Uso (conteo) de plantas en remedios
+ *     responses:
+ *       '200':
+ *         description: Plantas con contador de uso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/PlantaPublic'
+ *                   - type: object
+ *                     properties:
+ *                       uso: { type: integer }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/usage', async (req, res) => {
     try {
         const response = await plantaService.getPlantasUsage();
@@ -60,6 +122,27 @@ ruta.get('/usage', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/pohapp/planta/get:
+ *   get:
+ *     tags: [Plantas]
+ *     summary: Listar plantas (paginación opcional)
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/PageSizeParam'
+ *     responses:
+ *       '200':
+ *         description: Lista de plantas públicas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/PlantaPublic' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/', async (req, res) => {
     const pagination = parsePagination(req, res);
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
@@ -74,6 +157,27 @@ ruta.get('/get/', async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/planta/get/{idplanta}:
+ *   get:
+ *     tags: [Plantas]
+ *     summary: Detalle de planta por ID
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdPlantaParam'
+ *     responses:
+ *       '200':
+ *         description: Planta encontrada (o null si no existe)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               nullable: true
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PlantaPublic'
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/:idplanta', validateIdPlanta, async (req, res) => {
     try {
         const response = await plantaService.getPlantaById(req.params.idplanta);

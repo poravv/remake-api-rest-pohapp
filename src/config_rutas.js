@@ -52,6 +52,17 @@ try {
     routes.use(`/api/pohapp/chat/historial`, chatHistorial);
     routes.use(`/api/pohapp/chat/search`, aiLimiter, chatSearch);
     routes.use('/api/pohapp/imagenes', imagenes);
+
+    // Public API docs (Swagger UI). Feature-flagged so prod can stay off
+    // until validated. Default: on in non-prod, off in prod.
+    const swaggerEnabled =
+        (process.env.ENABLE_SWAGGER_DOCS ??
+            (process.env.NODE_ENV === 'production' ? 'false' : 'true'))
+            .toLowerCase() === 'true';
+    if (swaggerEnabled) {
+        routes.use('/api/pohapp/docs', require('./routes/docs'));
+    }
+
     // Admin plane — mount specific sub-routers BEFORE the legacy set-claim
     // router so `/users`, `/upload`, etc. resolve to the new modules.
     routes.use('/api/pohapp/admin/users', adminUsersRoutes);

@@ -32,6 +32,26 @@ const parsePagination = (req, res) => {
     };
 };
 
+/**
+ * @swagger
+ * /api/pohapp/medicinales/get:
+ *   get:
+ *     tags: [Medicinales]
+ *     summary: Vista agregada vw_medicina (paginable)
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/PageSizeParam'
+ *     responses:
+ *       '200':
+ *         description: Filas de la vista medicinal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/MedicinalView' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/', async (req, res) => {
     try {
         const pagination = parsePagination(req, res);
@@ -53,6 +73,25 @@ ruta.get('/get/', async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/medicinales/getid/{idpoha}:
+ *   get:
+ *     tags: [Medicinales]
+ *     summary: Filas medicinales por ID de remedio
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdPohaParam'
+ *     responses:
+ *       '200':
+ *         description: Filas asociadas a idpoha
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/MedicinalView' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/getid/:idpoha', validateIdPoha, async (req, res) => {
     try {
         const idpoha = parseInt(req.params.idpoha, 10);
@@ -65,6 +104,45 @@ ruta.get('/getid/:idpoha', validateIdPoha, async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/medicinales/get/{iddolencias}-{te}-{mate}-{terere}-{idplanta}:
+ *   get:
+ *     tags: [Medicinales]
+ *     summary: Filas medicinales por combinación de filtros
+ *     parameters:
+ *       - name: iddolencias
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: te
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: mate
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: terere
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: idplanta
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       '200':
+ *         description: Filas que matchean los filtros
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/MedicinalView' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/:iddolencias-:te-:mate-:terere-:idplanta', async (req, res) => {
     try {
         const iddolencias = parseIntParam(req.params.iddolencias, 'iddolencias', res);

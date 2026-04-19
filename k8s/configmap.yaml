@@ -42,3 +42,7 @@ data:
   # pohapp-admin.mindtechpy.net = consola admin web; localhost:3000 = dev local.
   # La app Flutter mobile NO requiere entrada (sin origen).
   CORS_ALLOWED_ORIGINS: "https://pohapp-admin.mindtechpy.net,http://localhost:3000"
+
+  # Public API docs (Swagger UI) feature flag. 'true' en prod habilita
+  # /api/pohapp/docs como endpoint público. Rollback instantáneo → 'false' + restart.
+  ENABLE_SWAGGER_DOCS: "true"

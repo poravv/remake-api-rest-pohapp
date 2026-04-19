@@ -16,6 +16,33 @@ const {
  * GET /imagenes/signed
  * Genera URL firmada para una imagen especifica
  */
+/**
+ * @swagger
+ * /api/pohapp/imagenes/signed:
+ *   get:
+ *     tags: [Imagenes]
+ *     summary: Generar URL firmada temporal para una imagen MinIO
+ *     parameters:
+ *       - name: url
+ *         in: query
+ *         required: true
+ *         schema: { type: string, format: uri }
+ *         description: URL original (MinIO o externa).
+ *       - name: expiry
+ *         in: query
+ *         required: false
+ *         schema: { type: integer, default: 86400 }
+ *         description: Segundos hasta la expiración (default 24h).
+ *     responses:
+ *       '200':
+ *         description: URL firmada (o original si no es MinIO)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/SignedUrl' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 router.get('/signed', validateSignedUrl, async (req, res) => {
   try {
     const { url, expiry } = req.query;
@@ -83,6 +110,28 @@ router.post('/signed-batch', validateSignedBatch, async (req, res) => {
  * GET /imagenes/proxy/:objectName
  * Redirige a una URL firmada temporal
  */
+/**
+ * @swagger
+ * /api/pohapp/imagenes/proxy/{path}:
+ *   get:
+ *     tags: [Imagenes]
+ *     summary: Redirige a URL firmada temporal (307)
+ *     parameters:
+ *       - name: path
+ *         in: path
+ *         required: true
+ *         schema: { type: string }
+ *         description: Ruta del objeto MinIO (soporta subdirectorios).
+ *     responses:
+ *       '307':
+ *         description: Redirect a la URL firmada temporal
+ *         headers:
+ *           Location:
+ *             schema: { type: string, format: uri }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 router.get('/proxy/*', async (req, res) => {
   try {
     const objectName = req.params[0]; // Captura todo despues de /proxy/
@@ -109,6 +158,27 @@ router.get('/proxy/*', async (req, res) => {
 /**
  * GET /imagenes/info
  * Obtiene informacion sobre una URL de MinIO sin generar firma
+ */
+/**
+ * @swagger
+ * /api/pohapp/imagenes/info:
+ *   get:
+ *     tags: [Imagenes]
+ *     summary: Inspeccionar URL (MinIO o externa) sin generar firma
+ *     parameters:
+ *       - name: url
+ *         in: query
+ *         required: true
+ *         schema: { type: string, format: uri }
+ *     responses:
+ *       '200':
+ *         description: Información de la URL
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ImageInfo' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
  */
 router.get('/info', validateInfoUrl, async (req, res) => {
   try {

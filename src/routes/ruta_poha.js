@@ -29,6 +29,24 @@ const parsePagination = (req, res) => {
     };
 };
 
+/**
+ * @swagger
+ * /api/pohapp/poha/count:
+ *   get:
+ *     tags: [Remedios (Pohã)]
+ *     summary: Cuenta total de remedios activos
+ *     responses:
+ *       '200':
+ *         description: Contador
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count: { type: integer }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/count/', async (req, res) => {
     try {
         const count = await pohaService.countPoha();
@@ -39,6 +57,27 @@ ruta.get('/count/', async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/poha/get:
+ *   get:
+ *     tags: [Remedios (Pohã)]
+ *     summary: Listar remedios (paginación opcional)
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/PageSizeParam'
+ *     responses:
+ *       '200':
+ *         description: Lista de remedios públicos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/PohaPublic' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/', async (req, res) => {
     const pagination = parsePagination(req, res);
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
@@ -54,6 +93,61 @@ ruta.get('/get/', async (req, res) => {
 })
 
 
+/**
+ * @swagger
+ * /api/pohapp/poha/getindex/{iddolencias}/{te}/{mate}/{terere}/{idplanta}:
+ *   get:
+ *     tags: [Remedios (Pohã)]
+ *     summary: Buscar remedios por filtros con paginación
+ *     parameters:
+ *       - name: iddolencias
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *         description: ID de dolencia (0 para ignorar)
+ *       - name: te
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *         description: 1 si se desea filtrar por té (0 para ignorar)
+ *       - name: mate
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: terere
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: idplanta
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *         description: ID de planta (0 para ignorar)
+ *       - name: page
+ *         in: query
+ *         required: false
+ *         schema: { type: integer, default: 0 }
+ *       - name: pageSize
+ *         in: query
+ *         required: false
+ *         schema: { type: integer, default: 10 }
+ *     responses:
+ *       '200':
+ *         description: Página de resultados
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 items:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/PohaPublic' }
+ *                 total: { type: integer }
+ *                 page: { type: integer }
+ *                 pageSize: { type: integer }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/getindex/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 0;
@@ -77,6 +171,44 @@ ruta.get('/getindex/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) 
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/poha/get/{iddolencias}/{te}/{mate}/{terere}/{idplanta}:
+ *   get:
+ *     tags: [Remedios (Pohã)]
+ *     summary: Buscar remedios por filtros sin paginación
+ *     parameters:
+ *       - name: iddolencias
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: te
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: mate
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: terere
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *       - name: idplanta
+ *         in: path
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       '200':
+ *         description: Remedios que matchean los filtros
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/PohaPublic' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
     try {
         const iddolencias = parseInt(req.params.iddolencias) || 0;
@@ -93,6 +225,24 @@ ruta.get('/get/:iddolencias/:te/:mate/:terere/:idplanta', async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/poha/get/{idpoha}:
+ *   get:
+ *     tags: [Remedios (Pohã)]
+ *     summary: Detalle de remedio por ID
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdPohaParam'
+ *     responses:
+ *       '200':
+ *         description: Remedio encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/PohaPublic' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/:idpoha', validateIdPoha, async (req, res) => {
     try {
         const response = await pohaService.getPohaById(req.params.idpoha);

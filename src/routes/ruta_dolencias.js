@@ -30,6 +30,29 @@ const parsePagination = (req, res) => {
     };
 };
 
+/**
+ * @swagger
+ * /api/pohapp/dolencias/getsql/{descripcion}:
+ *   get:
+ *     tags: [Dolencias]
+ *     summary: Buscar dolencias por descripción (LIKE)
+ *     parameters:
+ *       - name: descripcion
+ *         in: path
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       '200':
+ *         description: Lista de dolencias coincidentes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/DolenciaPublic' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/getsql/:descripcion', validateSearchDescripcion, async (req, res) => {
     try {
         const response = await dolenciasService.searchByDescripcion(req.params.descripcion.trim());
@@ -40,6 +63,28 @@ ruta.get('/getsql/:descripcion', validateSearchDescripcion, async (req, res) => 
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/dolencias/usage:
+ *   get:
+ *     tags: [Dolencias]
+ *     summary: Uso (conteo) de dolencias en remedios
+ *     responses:
+ *       '200':
+ *         description: Dolencias con contador de uso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/DolenciaPublic'
+ *                   - type: object
+ *                     properties:
+ *                       uso: { type: integer }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/usage', async (req, res) => {
     try {
         const response = await dolenciasService.getDolenciasUsage();
@@ -50,6 +95,27 @@ ruta.get('/usage', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/pohapp/dolencias/get:
+ *   get:
+ *     tags: [Dolencias]
+ *     summary: Listar dolencias (paginación opcional)
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/PageSizeParam'
+ *     responses:
+ *       '200':
+ *         description: Lista de dolencias públicas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/DolenciaPublic' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/', async (req, res) => {
     const pagination = parsePagination(req, res);
     if (pagination === null && (req.query.page !== undefined || req.query.pageSize !== undefined)) {
@@ -64,6 +130,27 @@ ruta.get('/get/', async (req, res) => {
     }
 })
 
+/**
+ * @swagger
+ * /api/pohapp/dolencias/get/{iddolencias}:
+ *   get:
+ *     tags: [Dolencias]
+ *     summary: Detalle de dolencia por ID
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdDolenciasParam'
+ *     responses:
+ *       '200':
+ *         description: Dolencia encontrada (o null si no existe)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               nullable: true
+ *               allOf:
+ *                 - $ref: '#/components/schemas/DolenciaPublic'
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ */
 ruta.get('/get/:iddolencias', validateIdDolencias, async (req, res) => {
     try {
         const response = await dolenciasService.getDolenciasById(req.params.iddolencias);

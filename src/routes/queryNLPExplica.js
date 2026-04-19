@@ -44,6 +44,43 @@ function requireJsonContentType(req, res, next) {
  * @returns 500 upstream OpenAI or DB failure
  * @returns 503 OPENAI_API_KEY not configured
  */
+/**
+ * @swagger
+ * /api/pohapp/query-nlp/explica:
+ *   post:
+ *     tags: [IA]
+ *     summary: Consulta NLP guardrailed sobre el dominio de pohã ñana
+ *     description: >
+ *       Endpoint IA con rate-limit dedicado (aiLimiter, 30 req/min).
+ *       Content-Type application/json obligatorio. Cuando el guardrail
+ *       rechaza la consulta como fuera-de-dominio, el body incluye
+ *       `fuera_de_dominio: true` y NO se escribe en chat_historial.
+ *     x-rate-limit-tier: ai
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/NlpExplicaRequest' }
+ *     responses:
+ *       '200':
+ *         description: Respuesta NLP (posiblemente guardrailed)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/NlpResponse' }
+ *       '400': { $ref: '#/components/responses/ValidationError' }
+ *       '415':
+ *         description: Content-Type no soportado (debe ser application/json)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       '429': { $ref: '#/components/responses/RateLimited' }
+ *       '500': { $ref: '#/components/responses/ServerError' }
+ *       '503':
+ *         description: OPENAI_API_KEY no configurada en el backend
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
 router.post('/', requireJsonContentType, validateNlpExplica, async (req, res) => {
   const { pregunta, idusuario } = req.body;
 
