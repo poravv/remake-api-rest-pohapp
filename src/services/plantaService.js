@@ -1,6 +1,6 @@
 const planta = require('../model/planta');
 const database = require('../database');
-const { QueryTypes } = require('sequelize');
+const { QueryTypes, Op } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
 
 async function searchByNombre(nombre) {
@@ -127,6 +127,58 @@ async function rejectPlanta(idplanta) {
     return { message: 'Planta rechazada', affected: result[0] };
 }
 
+/**
+ * "Mis plantas" = plantas that the user has referenced in any of their own
+ * pohas. The planta table itself has no idusuario column (plants are a
+ * shared catalog); per-user association lives in `poha_planta.idusuario`.
+ *
+ * Returns { items, total, limit, offset }. `estado` defaults to 'all'
+ * because the link is through the user's contribution, not the plant's
+ * moderation state — users still want to see plantas they used even if
+ * the planta itself is pending.
+ */
+async function listByUser(uid, filters = {}) {
+    if (!uid) {
+        const err = new Error('uid requerido');
+        err.statusCode = 400;
+        throw err;
+    }
+    const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(filters.offset, 10) || 0, 0);
+    const estadoClause =
+        filters.estado && filters.estado !== 'all'
+            ? 'AND p.estado = :estado'
+            : '';
+    const qClause = filters.q
+        ? 'AND LOWER(p.nombre) LIKE LOWER(:q)'
+        : '';
+
+    const countSql = `
+        SELECT COUNT(DISTINCT p.idplanta) AS total
+          FROM planta p
+          JOIN poha_planta pp ON pp.idplanta = p.idplanta
+         WHERE pp.idusuario = :uid ${estadoClause} ${qClause}
+    `;
+    const rowsSql = `
+        SELECT DISTINCT p.*
+          FROM planta p
+          JOIN poha_planta pp ON pp.idplanta = p.idplanta
+         WHERE pp.idusuario = :uid ${estadoClause} ${qClause}
+         ORDER BY p.idplanta DESC
+         LIMIT :limit OFFSET :offset
+    `;
+    const replacements = { uid, limit, offset };
+    if (estadoClause) replacements.estado = filters.estado;
+    if (qClause) replacements.q = `%${filters.q}%`;
+
+    const [countRows, rows] = await Promise.all([
+        database.query(countSql, { replacements, type: QueryTypes.SELECT }),
+        database.query(rowsSql, { replacements, type: QueryTypes.SELECT }),
+    ]);
+    const total = Number(countRows[0]?.total ?? 0);
+    return { items: rows, total, limit, offset };
+}
+
 module.exports = {
     searchByNombre,
     getPlantasLimited,
@@ -139,4 +191,5 @@ module.exports = {
     getPendingPlantas,
     approvePlanta,
     rejectPlanta,
+    listByUser,
 };

@@ -158,6 +158,27 @@ ruta.get('/get/', async (req, res) => {
 })
 
 /**
+ * GET /api/pohapp/planta/mias
+ * Plantas referenciadas por el usuario autenticado en cualquiera de sus pohas.
+ * Query: estado=AC|PE|IN|all, limit (1..100, default 20), offset (>=0), q (filtro por nombre).
+ * Must be declared BEFORE /get/:idplanta to avoid "mias" being parsed as an id.
+ */
+ruta.get('/mias', verifyToken, async (req, res) => {
+    try {
+        const response = await plantaService.listByUser(req.user.uid, {
+            estado: req.query.estado,
+            limit: req.query.limit,
+            offset: req.query.offset,
+            q: req.query.q,
+        });
+        res.json(response);
+    } catch (error) {
+        console.error('Error en /planta/mias:', error);
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
+/**
  * @swagger
  * /api/pohapp/planta/get/{idplanta}:
  *   get:

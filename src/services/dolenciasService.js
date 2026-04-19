@@ -103,6 +103,53 @@ async function rejectDolencias(iddolencias) {
     return { message: 'Dolencia rechazada', iddolencias };
 }
 
+/**
+ * "Mis dolencias" = dolencias referenced by the user in any of their pohas.
+ * dolencias has no idusuario column; per-user link lives in
+ * `dolencias_poha.idusuario`. Returns { items, total, limit, offset }.
+ */
+async function listByUser(uid, filters = {}) {
+    if (!uid) {
+        const err = new Error('uid requerido');
+        err.statusCode = 400;
+        throw err;
+    }
+    const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(filters.offset, 10) || 0, 0);
+    const estadoClause =
+        filters.estado && filters.estado !== 'all'
+            ? 'AND d.estado = :estado'
+            : '';
+    const qClause = filters.q
+        ? 'AND LOWER(d.descripcion) LIKE LOWER(:q)'
+        : '';
+
+    const countSql = `
+        SELECT COUNT(DISTINCT d.iddolencias) AS total
+          FROM dolencias d
+          JOIN dolencias_poha dp ON dp.iddolencias = d.iddolencias
+         WHERE dp.idusuario = :uid ${estadoClause} ${qClause}
+    `;
+    const rowsSql = `
+        SELECT DISTINCT d.*
+          FROM dolencias d
+          JOIN dolencias_poha dp ON dp.iddolencias = d.iddolencias
+         WHERE dp.idusuario = :uid ${estadoClause} ${qClause}
+         ORDER BY d.iddolencias DESC
+         LIMIT :limit OFFSET :offset
+    `;
+    const replacements = { uid, limit, offset };
+    if (estadoClause) replacements.estado = filters.estado;
+    if (qClause) replacements.q = `%${filters.q}%`;
+
+    const [countRows, rows] = await Promise.all([
+        database.query(countSql, { replacements, type: QueryTypes.SELECT }),
+        database.query(rowsSql, { replacements, type: QueryTypes.SELECT }),
+    ]);
+    const total = Number(countRows[0]?.total ?? 0);
+    return { items: rows, total, limit, offset };
+}
+
 module.exports = {
     searchByDescripcion,
     getDolenciasUsage,
@@ -114,4 +161,5 @@ module.exports = {
     getPendingDolencias,
     approveDolencias,
     rejectDolencias,
+    listByUser,
 };

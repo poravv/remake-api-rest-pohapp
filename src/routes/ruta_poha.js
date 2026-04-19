@@ -92,6 +92,26 @@ ruta.get('/get/', async (req, res) => {
     }
 })
 
+/**
+ * GET /api/pohapp/poha/mias
+ * Pohas creadas por el usuario autenticado (poha.idusuario = req.user.uid).
+ * Query: estado=AC|PE|IN|all, limit (1..100, default 20), offset.
+ * Must be declared BEFORE /get/:idpoha so "mias" no se parsea como id.
+ */
+ruta.get('/mias', verifyToken, async (req, res) => {
+    try {
+        const response = await pohaService.listByUser(req.user.uid, {
+            estado: req.query.estado,
+            limit: req.query.limit,
+            offset: req.query.offset,
+        });
+        res.json(response);
+    } catch (error) {
+        console.error('Error en /poha/mias:', error);
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
 
 /**
  * @swagger

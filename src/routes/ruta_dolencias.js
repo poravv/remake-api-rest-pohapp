@@ -131,6 +131,26 @@ ruta.get('/get/', async (req, res) => {
 })
 
 /**
+ * GET /api/pohapp/dolencias/mias
+ * Dolencias referenciadas por el usuario en sus pohas. Must be declared
+ * BEFORE /get/:iddolencias.
+ */
+ruta.get('/mias', verifyToken, async (req, res) => {
+    try {
+        const response = await dolenciasService.listByUser(req.user.uid, {
+            estado: req.query.estado,
+            limit: req.query.limit,
+            offset: req.query.offset,
+            q: req.query.q,
+        });
+        res.json(response);
+    } catch (error) {
+        console.error('Error en /dolencias/mias:', error);
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
+/**
  * @swagger
  * /api/pohapp/dolencias/get/{iddolencias}:
  *   get:

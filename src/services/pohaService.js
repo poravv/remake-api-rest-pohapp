@@ -325,6 +325,35 @@ async function getPendingPoha() {
     });
 }
 
+/**
+ * Returns pohas contributed by a specific user (poha.idusuario = uid).
+ * Filters: estado ('AC'|'PE'|'IN'|'all'|undefined), limit 1..100, offset >=0.
+ * Returns { items, total } so the caller can paginate without a second round trip.
+ */
+async function listByUser(uid, filters = {}) {
+    if (!uid) {
+        const err = new Error('uid requerido');
+        err.statusCode = 400;
+        throw err;
+    }
+    const where = { idusuario: uid };
+    if (filters.estado && filters.estado !== 'all') {
+        where.estado = filters.estado;
+    }
+    const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(filters.offset, 10) || 0, 0);
+    const { count, rows } = await poha.findAndCountAll({
+        where,
+        include: FULL_INCLUDES,
+        order: [['idpoha', 'DESC']],
+        distinct: true,
+        col: 'idpoha',
+        limit,
+        offset,
+    });
+    return { items: rows, total: count, limit, offset };
+}
+
 async function approvePoha(idpoha) {
     const result = await poha.update(
         { estado: 'AC' },
@@ -371,4 +400,5 @@ module.exports = {
     getPendingPoha,
     approvePoha,
     rejectPoha,
+    listByUser,
 };
