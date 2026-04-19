@@ -150,7 +150,7 @@ metadata:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     # Whitelist estricta: admin web + dev local. El backend Express
     # valida nuevamente via CORS_ALLOWED_ORIGINS (doble capa).
-    nginx.ingress.kubernetes.io/cors-allow-origin: "https://admin.mindtechpy.net, http://localhost:3000"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://pohapp-admin.mindtechpy.net, http://localhost:3000"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization,Content-Type,X-Requested-With,If-Modified-Since,Cache-Control"

@@ -39,6 +39,6 @@ data:
   RATE_LIMIT_AI_MAX: "30"
 
   # CORS — orígenes permitidos para /api/pohapp/** (whitelist estricta).
-  # admin.mindtechpy.net = consola admin web; localhost:3000 = dev local.
+  # pohapp-admin.mindtechpy.net = consola admin web; localhost:3000 = dev local.
   # La app Flutter mobile NO requiere entrada (sin origen).
-  CORS_ALLOWED_ORIGINS: "https://admin.mindtechpy.net,http://localhost:3000"
+  CORS_ALLOWED_ORIGINS: "https://pohapp-admin.mindtechpy.net,http://localhost:3000"
