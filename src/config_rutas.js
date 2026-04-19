@@ -20,6 +20,7 @@ const adminUploadRoutes = require('./routes/admin/upload');
 const adminBulkRoutes = require('./routes/admin/bulk');
 const adminAuditRoutes = require('./routes/admin/audit');
 const adminMetricsRoutes = require('./routes/admin/metrics');
+const adminCatalogRoutes = require('./routes/admin/catalog');
 const { signMinioUrls } = require('./middleware/signImages');
 const { cacheMiddleware } = require('./middleware/cache');
 const rateLimit = require('express-rate-limit');
@@ -58,6 +59,7 @@ try {
     routes.use('/api/pohapp/admin/bulk', adminBulkRoutes);
     routes.use('/api/pohapp/admin/audit-log', adminAuditRoutes);
     routes.use('/api/pohapp/admin/metrics', adminMetricsRoutes);
+    routes.use('/api/pohapp/admin/catalog', adminCatalogRoutes);
     routes.use('/api/pohapp/admin', adminRoutes);
 } catch (error) {
     console.log(`Algo salió mal ${error}`);

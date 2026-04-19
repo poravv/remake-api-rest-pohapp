@@ -23,6 +23,9 @@ function extractTarget(req) {
     if (params.idplanta) return { targetType: 'planta', targetId: params.idplanta };
     if (params.iddolencia) return { targetType: 'dolencia', targetId: params.iddolencia };
     if (params.idpoha) return { targetType: 'poha', targetId: params.idpoha };
+    // Body-level targets (actions like set-claim pass targetUid in the body).
+    const body = req.body || {};
+    if (body.targetUid) return { targetType: 'user', targetId: body.targetUid };
     const paramKeys = Object.keys(params);
     if (paramKeys.length === 1) {
         return { targetType: null, targetId: params[paramKeys[0]] };
