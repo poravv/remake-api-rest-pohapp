@@ -35,6 +35,10 @@ if (corsOrigins) {
 
 app.use(helmet({
     contentSecurityPolicy: false,
+    // API serves resources to cross-origin clients (admin web + MinIO redirects).
+    // Default 'same-origin' causes ERR_BLOCKED_BY_RESPONSE.NotSameOrigin in the
+    // browser when <img> tries to load /imagenes/proxy/* from another origin.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(compression());
 
