@@ -12,8 +12,14 @@ const medicinales = require('./routes/ruta_medicinales');
 const queryNLPExplica = require('./routes/queryNLPExplica');
 const queryNlpRoute = require('./routes/queryNLP');
 const chatHistorial = require('./routes/chatHistorial');
+const chatSearch = require('./routes/chatSearch');
 const imagenes = require('./routes/ruta_imagenes');
 const adminRoutes = require('./routes/ruta_admin');
+const adminUsersRoutes = require('./routes/admin/users');
+const adminUploadRoutes = require('./routes/admin/upload');
+const adminBulkRoutes = require('./routes/admin/bulk');
+const adminAuditRoutes = require('./routes/admin/audit');
+const adminMetricsRoutes = require('./routes/admin/metrics');
 const { signMinioUrls } = require('./middleware/signImages');
 const { cacheMiddleware } = require('./middleware/cache');
 const rateLimit = require('express-rate-limit');
@@ -43,7 +49,15 @@ try {
     routes.use(`/api/pohapp/query-nlp/explica`, aiLimiter, signMinioUrls, queryNLPExplica);
     routes.use(`/api/pohapp/query-nlp/preview`, aiLimiter, signMinioUrls, queryNlpRoute);
     routes.use(`/api/pohapp/chat/historial`, chatHistorial);
+    routes.use(`/api/pohapp/chat/search`, aiLimiter, chatSearch);
     routes.use('/api/pohapp/imagenes', imagenes);
+    // Admin plane — mount specific sub-routers BEFORE the legacy set-claim
+    // router so `/users`, `/upload`, etc. resolve to the new modules.
+    routes.use('/api/pohapp/admin/users', adminUsersRoutes);
+    routes.use('/api/pohapp/admin/upload', adminUploadRoutes);
+    routes.use('/api/pohapp/admin/bulk', adminBulkRoutes);
+    routes.use('/api/pohapp/admin/audit-log', adminAuditRoutes);
+    routes.use('/api/pohapp/admin/metrics', adminMetricsRoutes);
     routes.use('/api/pohapp/admin', adminRoutes);
 } catch (error) {
     console.log(`Algo salió mal ${error}`);

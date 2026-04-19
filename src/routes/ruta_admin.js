@@ -3,7 +3,12 @@ const ruta = express.Router();
 const admin = require('../firebase');
 const usuario = require('../model/usuario');
 const { verifyToken, requireAdmin } = require('../middleware/auth');
+const rateLimitAdmin = require('../middleware/rateLimitAdmin');
 const db = admin.firestore();
+
+// Protect every route in this legacy admin router with auth + rate-limit.
+// Rate limiter runs AFTER verifyToken so keyGenerator keys on req.user.uid.
+ruta.use(verifyToken, requireAdmin, rateLimitAdmin);
 
 /**
  * POST /set-claim
@@ -11,7 +16,7 @@ const db = admin.firestore();
  * Also syncs the isAdmin field in the database.
  * Protected: requires authenticated admin.
  */
-ruta.post('/set-claim', verifyToken, requireAdmin, async (req, res) => {
+ruta.post('/set-claim', async (req, res) => {
     try {
         const { targetUid, isAdmin: makeAdmin } = req.body;
 
@@ -96,7 +101,7 @@ ruta.post('/set-claim', verifyToken, requireAdmin, async (req, res) => {
  * Reads Firebase Custom Claims for a given user.
  * Protected: requires authenticated admin.
  */
-ruta.get('/check-claim/:uid', verifyToken, requireAdmin, async (req, res) => {
+ruta.get('/check-claim/:uid', async (req, res) => {
     try {
         const { uid } = req.params;
 

@@ -17,6 +17,83 @@ const FULL_INCLUDES = [
     { model: dolencias_poha, include: [{ model: dolencias }] },
 ];
 
+// Fields stored directly on the poha table. Relationship arrays
+// (plantas, dolencias) are handled separately via pivot tables.
+const POHA_SCALAR_FIELDS = [
+    'preparado', 'recomendacion', 'te', 'mate', 'terere', 'idautor', 'idusuario', 'estado',
+];
+
+function pickScalarFields(data) {
+    const out = {};
+    for (const key of POHA_SCALAR_FIELDS) {
+        if (data[key] !== undefined) out[key] = data[key];
+    }
+    return out;
+}
+
+function normalizeIdArray(value) {
+    if (value === undefined || value === null) return null;
+    if (!Array.isArray(value)) return null;
+    const ids = value
+        .map((v) => Number(v))
+        .filter((v) => Number.isInteger(v) && v > 0);
+    return Array.from(new Set(ids));
+}
+
+async function assertPlantasExist(ids, transaction) {
+    if (!ids.length) return;
+    const found = await planta.findAll({
+        attributes: ['idplanta'],
+        where: { idplanta: { [Op.in]: ids } },
+        transaction,
+        raw: true,
+    });
+    if (found.length !== ids.length) {
+        const err = new Error('Una o mas plantas referenciadas no existen');
+        err.statusCode = 400;
+        throw err;
+    }
+}
+
+async function assertDolenciasExist(ids, transaction) {
+    if (!ids.length) return;
+    const found = await dolencias.findAll({
+        attributes: ['iddolencias'],
+        where: { iddolencias: { [Op.in]: ids } },
+        transaction,
+        raw: true,
+    });
+    if (found.length !== ids.length) {
+        const err = new Error('Una o mas dolencias referenciadas no existen');
+        err.statusCode = 400;
+        throw err;
+    }
+}
+
+async function syncPohaPlantas(idpoha, idusuario, plantasIds, transaction) {
+    if (plantasIds === null) return;
+    await poha_planta.destroy({ where: { idpoha }, transaction });
+    if (!plantasIds.length) return;
+    const rows = plantasIds.map((idplanta) => ({
+        idpoha,
+        idplanta,
+        idusuario: idusuario || 'system',
+    }));
+    await poha_planta.bulkCreate(rows, { transaction });
+}
+
+async function syncPohaDolencias(idpoha, idusuario, dolenciasIds, transaction) {
+    if (dolenciasIds === null) return;
+    await dolencias_poha.destroy({ where: { idpoha }, transaction });
+    if (!dolenciasIds.length) return;
+    const rows = dolenciasIds.map((iddolencias) => ({
+        idpoha,
+        iddolencias,
+        idusuario: idusuario || 'system',
+    }));
+    await dolencias_poha.bulkCreate(rows, { transaction });
+}
+
 async function countPoha() {
     return poha.count();
 }
@@ -126,8 +203,19 @@ async function createPoha(data, authUser) {
         estado = 'AC';
     }
 
-    const pohaData = { ...data, estado };
-    const nuevoPoha = await poha.create(pohaData);
+    const plantasIds = normalizeIdArray(data.plantas);
+    const dolenciasIds = normalizeIdArray(data.dolencias);
+    const scalarData = { ...pickScalarFields(data), estado };
+
+    const nuevoPoha = await sequelize.transaction(async (tx) => {
+        if (plantasIds !== null) await assertPlantasExist(plantasIds, tx);
+        if (dolenciasIds !== null) await assertDolenciasExist(dolenciasIds, tx);
+
+        const created = await poha.create(scalarData, { transaction: tx });
+        await syncPohaPlantas(created.idpoha, scalarData.idusuario, plantasIds, tx);
+        await syncPohaDolencias(created.idpoha, scalarData.idusuario, dolenciasIds, tx);
+        return created;
+    });
 
     // Generate training text from enriched data
     const [datos] = await sequelize.query(`
@@ -161,9 +249,17 @@ async function createPoha(data, authUser) {
     `, { replacements: [nuevoPoha.idpoha] });
 
     const textoEntrenamiento = datos[0]?.texto_entrenamiento;
+    const pohaWithRelations = await getPohaById(nuevoPoha.idpoha);
+
+    invalidateByPrefix('poha');
+    invalidateByPrefix('medicinales');
 
     if (!textoEntrenamiento) {
-        return { poha: nuevoPoha.toJSON(), embeddingGuardado: false, error: 'No se pudo generar texto de entrenamiento.' };
+        return {
+            poha: pohaWithRelations ? pohaWithRelations.toJSON() : nuevoPoha.toJSON(),
+            embeddingGuardado: false,
+            error: 'No se pudo generar texto de entrenamiento.',
+        };
     }
 
     // Create embedding
@@ -183,17 +279,33 @@ async function createPoha(data, authUser) {
         replacements: [nuevoPoha.idpoha, textoEntrenamiento, JSON.stringify(embedding)],
     });
 
-    invalidateByPrefix('poha');
-    invalidateByPrefix('medicinales');
-
-    return { ...nuevoPoha.toJSON(), embeddingGuardado: true };
+    return {
+        ...(pohaWithRelations ? pohaWithRelations.toJSON() : nuevoPoha.toJSON()),
+        embeddingGuardado: true,
+    };
 }
 
 async function updatePoha(idpoha, data) {
-    const result = await poha.update(data, { where: { idpoha } });
+    const plantasIds = normalizeIdArray(data.plantas);
+    const dolenciasIds = normalizeIdArray(data.dolencias);
+    const scalarData = pickScalarFields(data);
+
+    await sequelize.transaction(async (tx) => {
+        if (plantasIds !== null) await assertPlantasExist(plantasIds, tx);
+        if (dolenciasIds !== null) await assertDolenciasExist(dolenciasIds, tx);
+
+        if (Object.keys(scalarData).length > 0) {
+            await poha.update(scalarData, { where: { idpoha }, transaction: tx });
+        }
+        await syncPohaPlantas(idpoha, scalarData.idusuario, plantasIds, tx);
+        await syncPohaDolencias(idpoha, scalarData.idusuario, dolenciasIds, tx);
+    });
+
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
-    return result;
+
+    const updated = await getPohaById(idpoha);
+    return updated ? updated.toJSON() : null;
 }
 
 async function deletePoha(idpoha) {

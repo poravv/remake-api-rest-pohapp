@@ -9,11 +9,19 @@ const validateCreatePoha = [
   body('terere').optional().toInt().isInt({ min: 0, max: 1 }).withMessage('terere debe ser 0 o 1'),
   body('idautor').optional().toInt().isInt().withMessage('idautor debe ser un entero'),
   body('idusuario').optional().isString().withMessage('idusuario debe ser un string'),
+  body('plantas').optional().isArray().withMessage('plantas debe ser un array'),
+  body('plantas.*').optional().isInt({ min: 1 }).withMessage('cada planta debe ser un id entero positivo'),
+  body('dolencias').optional().isArray().withMessage('dolencias debe ser un array'),
+  body('dolencias.*').optional().isInt({ min: 1 }).withMessage('cada dolencia debe ser un id entero positivo'),
   handleValidation,
 ];
 
 const validateUpdatePoha = [
   param('idpoha').toInt().isInt({ min: 1 }).withMessage('idpoha invalido'),
+  body('plantas').optional().isArray().withMessage('plantas debe ser un array'),
+  body('plantas.*').optional().isInt({ min: 1 }).withMessage('cada planta debe ser un id entero positivo'),
+  body('dolencias').optional().isArray().withMessage('dolencias debe ser un array'),
+  body('dolencias.*').optional().isInt({ min: 1 }).withMessage('cada dolencia debe ser un id entero positivo'),
   handleValidation,
 ];
 

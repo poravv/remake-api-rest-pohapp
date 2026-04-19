@@ -14,12 +14,23 @@ const { errorHandler } = require('./middleware/errorHandler');
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
+// CORS allow-list driven by CORS_ALLOWED_ORIGINS (comma-separated).
+// In production we refuse to default to a permissive policy but we do not
+// block boot: log a prominent warning instead so ops can react without an
+// outage. In development, absence of the env keeps the current permissive
+// behavior to avoid breaking local workflows.
 const corsOrigins = process.env.CORS_ALLOWED_ORIGINS;
 if (corsOrigins) {
-  const allowedOrigins = corsOrigins.split(',').map(o => o.trim());
-  app.use(cors({ origin: allowedOrigins }));
+    const allowedOrigins = corsOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+    app.use(cors({ origin: allowedOrigins, credentials: true }));
+} else if (process.env.NODE_ENV === 'production') {
+    console.warn(
+        '[CORS][WARN] CORS_ALLOWED_ORIGINS no esta definido en produccion. ' +
+            'Configura la lista explicita de origenes permitidos.'
+    );
+    app.use(cors({ origin: false }));
 } else {
-  app.use(cors());
+    app.use(cors());
 }
 
 app.use(helmet({
