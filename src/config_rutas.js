@@ -59,8 +59,9 @@ try {
     routes.use('/api/pohapp/uploads', uploadsRoutes);
 
     // Readiness probe: valida que la DB esté alcanzable. Más estricto
-    // que `/` (que sólo confirma que el process vive).
-    routes.get('/readiness', async (_req, res) => {
+    // que `/` (que sólo confirma que el process vive). La ruta debe
+    // coincidir con readinessProbe.httpGet.path del Deployment k8s.
+    routes.get('/api/pohapp/readiness', async (_req, res) => {
         try {
             await database.authenticate();
             res.json({ ok: true });
