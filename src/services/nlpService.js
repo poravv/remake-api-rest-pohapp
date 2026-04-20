@@ -23,6 +23,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const CHAT_MODEL = 'gpt-4o';
 const CANDIDATE_TOP_N = 5;
+const MULTI_CLAUSE_TOP_K = 3;
 const HISTORY_WINDOW_MINUTES = 15;
 const OFF_DOMAIN_FALLBACK = 'Solo puedo responder sobre plantas medicinales paraguayas.';
 const NO_CONTEXT_FALLBACK = 'No tengo informacion suficiente en la base de conocimiento.';
@@ -169,11 +170,16 @@ async function crossCheckImages(imgs, keptIdpoha) {
  * Build the user-turn payload that carries the retrieval context alongside
  * the sanitized user question. Context is a compact bullet list the model
  * can cite from; the model is instructed NOT to invent anything outside it.
+ *
+ * IMPORTANT: the numeric idpoha is intentionally NOT exposed in the string —
+ * the model used to echo it back ("Jengibre (idpoha=21)") when it appeared
+ * in the context label. IDs travel separately in the structured output
+ * field `idpoha_refs`.
  */
 function buildContextoActual(plantas) {
   return plantas
     .map((p) => {
-      let nombre = `Planta ${p.idpoha}`;
+      let nombre = 'Planta sin nombre';
       try {
         const detalle =
           typeof p.plantas_detalle_json === 'string'
@@ -185,9 +191,58 @@ function buildContextoActual(plantas) {
       } catch (_err) {
         // ignore — fall back to generic label
       }
-      return `idpoha=${p.idpoha} (${nombre}):\n${p.texto_entrenamiento}`;
+      return `${nombre}:\n${p.texto_entrenamiento}`;
     })
     .join('\n\n');
+}
+
+/**
+ * Split a natural-language question into sub-queries when the user asks
+ * about multiple ailments in one turn ("dolor de cabeza y dolor de garganta").
+ * Returns the original question as a singleton array when no connector is
+ * detected or when any individual sub-query is trivially short.
+ */
+function splitMultiClauseQuery(raw) {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return [trimmed];
+  const parts = trimmed
+    .split(/\s*(?:\by\b|\be\b|\by también\b|,|;)\s*/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 6);
+  // Only treat as multi-clause when at least two meaningful sub-queries
+  // survive AND they are different — otherwise retrieval stays single.
+  const unique = Array.from(new Set(parts.map((s) => s.toLowerCase())));
+  if (unique.length < 2) return [trimmed];
+  return parts;
+}
+
+/**
+ * Retrieve candidate pohas for a possibly multi-clause question. For each
+ * detected clause we embed separately and grab the top-K, then union the
+ * candidate ids preserving the best similarity per id. Falls back to the
+ * single-query path when the question has only one clause.
+ */
+async function retrieveCandidatesForQuestion(normalizedQuestion, filas) {
+  const clauses = splitMultiClauseQuery(normalizedQuestion);
+  if (clauses.length === 1) {
+    const top = rankBySimilarity(filas, await generateEmbedding(clauses[0]), 0, CANDIDATE_TOP_N);
+    return { top, perClause: 1, similarityTop1: top.length > 0 ? top[0].score : 0 };
+  }
+  const byId = new Map();
+  let similarityTop1 = 0;
+  for (const clause of clauses) {
+    const vector = await generateEmbedding(clause);
+    const chunk = rankBySimilarity(filas, vector, 0, MULTI_CLAUSE_TOP_K);
+    if (chunk.length > 0 && chunk[0].score > similarityTop1) {
+      similarityTop1 = chunk[0].score;
+    }
+    for (const row of chunk) {
+      const prev = byId.get(row.idpoha);
+      if (!prev || row.score > prev.score) byId.set(row.idpoha, row);
+    }
+  }
+  const merged = [...byId.values()].sort((a, b) => b.score - a.score);
+  return { top: merged, perClause: clauses.length, similarityTop1 };
 }
 
 /**
@@ -263,10 +318,10 @@ async function queryWithExplanation(pregunta, idusuario, flags = {}) {
   }
 
   const normalizedQuestion = normalize(preguntaSafe);
-  const inputVector = await generateEmbedding(normalizedQuestion);
   const filas = await getStoredEmbeddings();
-  const top = rankBySimilarity(filas, inputVector, 0, CANDIDATE_TOP_N);
-  const similarityTop1 = top.length > 0 ? top[0].score : 0;
+  const retrieval = await retrieveCandidatesForQuestion(normalizedQuestion, filas);
+  const top = retrieval.top;
+  const similarityTop1 = retrieval.similarityTop1;
 
   if (similarityTop1 < aiGuardrails.SIMILARITY_THRESHOLD) {
     const decision = { reason: aiGuardrails.REASONS.LOW_SIMILARITY };
@@ -297,7 +352,7 @@ async function queryWithExplanation(pregunta, idusuario, flags = {}) {
   ]);
 
   const userContent = contextoActual
-    ? `${preguntaSafe}\n\nContexto de pohã disponible (usa SOLO estos IDs y URLs):\n${contextoActual}`
+    ? `${preguntaSafe}\n\nContexto de pohã disponible (cita estas plantas por nombre; no repitas identificadores numéricos en el texto):\n${contextoActual}`
     : preguntaSafe;
 
   const modelResult = await callModelStrict(mensajesPrevios, userContent);
