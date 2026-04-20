@@ -210,7 +210,9 @@ function buildResponseSchema() {
             properties: {
               nombre: { type: 'string', maxLength: 200 },
               nombre_cientifico: { type: 'string', maxLength: 200 },
-              url: { type: 'string', format: 'uri', maxLength: 500 },
+              // NOTE: OpenAI's structured-outputs json_schema rejects `format: 'uri'`.
+              // URL shape is validated downstream in validateImages().
+              url: { type: 'string', maxLength: 500 },
             },
           },
         },
