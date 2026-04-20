@@ -21,6 +21,9 @@ const adminBulkRoutes = require('./routes/admin/bulk');
 const adminAuditRoutes = require('./routes/admin/audit');
 const adminMetricsRoutes = require('./routes/admin/metrics');
 const adminCatalogRoutes = require('./routes/admin/catalog');
+const aporteRoutes = require('./routes/aporte');
+const uploadsRoutes = require('./routes/uploads');
+const database = require('./database');
 const { signMinioUrls } = require('./middleware/signImages');
 const { cacheMiddleware } = require('./middleware/cache');
 const rateLimit = require('express-rate-limit');
@@ -52,6 +55,19 @@ try {
     routes.use(`/api/pohapp/chat/historial`, chatHistorial);
     routes.use(`/api/pohapp/chat/search`, aiLimiter, chatSearch);
     routes.use('/api/pohapp/imagenes', imagenes);
+    routes.use('/api/pohapp/aporte', aporteRoutes);
+    routes.use('/api/pohapp/uploads', uploadsRoutes);
+
+    // Readiness probe: valida que la DB esté alcanzable. Más estricto
+    // que `/` (que sólo confirma que el process vive).
+    routes.get('/readiness', async (_req, res) => {
+        try {
+            await database.authenticate();
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(503).json({ ok: false, error: 'db unreachable' });
+        }
+    });
 
     // Public API docs (Swagger UI). Feature-flagged so prod can stay off
     // until validated. Default: on in non-prod, off in prod.

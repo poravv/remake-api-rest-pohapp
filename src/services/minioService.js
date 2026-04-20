@@ -179,6 +179,18 @@ const getPresignedUrls = async (urls, expirySeconds = 86400) => {
 };
 
 /**
+ * Genera una URL firmada (presigned PUT) para que el cliente suba directo a MinIO
+ * sin proxear el buffer por el backend. Usado por POST /uploads/sign.
+ * @param {string} objectName - key destino (ej: "aportes/u-<uid>/<uuid>.jpg")
+ * @param {number} expirySeconds - por defecto 15 minutos
+ * @returns {Promise<string>} - URL firmada PUT
+ */
+const getPresignedPutUrl = async (objectName, expirySeconds = 900) => {
+  if (!objectName) throw new Error('objectName requerido');
+  return minioClient.presignedPutObject(bucketName, objectName, expirySeconds);
+};
+
+/**
  * Sube una imagen a MinIO
  * @param {Buffer} fileBuffer - Buffer del archivo
  * @param {string} fileName - Nombre del archivo
@@ -254,8 +266,10 @@ const listImages = async (prefix = '') => {
 
 module.exports = {
   minioClient,
+  bucketName,
   getPresignedUrl,
   getPresignedUrls,
+  getPresignedPutUrl,
   extractObjectName,
   isMinioUrl,
   uploadImage,

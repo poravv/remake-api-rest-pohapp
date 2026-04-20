@@ -60,7 +60,7 @@ spec:
           failureThreshold: 5
         readinessProbe:
           httpGet:
-            path: /
+            path: /api/pohapp/readiness
             port: http
           initialDelaySeconds: 45
           periodSeconds: 10
@@ -105,7 +105,10 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: pohapp-backend
-  minReplicas: 2
+  # Alineado con Deployment.replicas=1 (cluster single-node, recursos
+  # limitados). Si el cluster crece, subir a 2 para supervivencia al
+  # eviction y alta disponibilidad.
+  minReplicas: 1
   maxReplicas: 10
   behavior:
     scaleUp:
@@ -135,6 +138,22 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
+---
+# PodDisruptionBudget: al drenar un node (mantenimiento, upgrades) el
+# cluster debe conservar al menos 1 pod del backend. En cluster
+# single-node esto además le avisa al cluster que hay que esperar al
+# nuevo pod antes de matar al viejo durante reboots programados.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pohapp-backend-pdb
+  namespace: pohapp-backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: pohapp-backend
+      tier: backend
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
