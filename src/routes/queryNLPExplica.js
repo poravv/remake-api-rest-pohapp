@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const nlpService = require('../services/nlpService');
 const { validateNlpExplica } = require('../middleware/validation/nlp.validation');
+const { verifyToken } = require('../middleware/auth');
 
 /**
  * Reject any non-JSON Content-Type with 415 BEFORE express.urlencoded can
@@ -81,15 +82,19 @@ function requireJsonContentType(req, res, next) {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
  */
-router.post('/', requireJsonContentType, validateNlpExplica, async (req, res) => {
-  const { pregunta, idusuario } = req.body;
-
+router.post('/', verifyToken, requireJsonContentType, validateNlpExplica, async (req, res) => {
   if (!process.env.OPENAI_API_KEY) {
     return res.status(503).json({
       error: 'Servicio de IA no configurado',
       message: 'Falta OPENAI_API_KEY en el backend',
     });
   }
+
+  // The client passes `idusuario` in the body for legacy telemetry, but the
+  // real identity is always the token's uid. Pin telemetry to req.user.uid so
+  // guests (or spoofed body values) can't pollute chat_historial metrics.
+  const pregunta = req.body.pregunta;
+  const idusuario = req.user.uid;
 
   try {
     const result = await nlpService.queryWithExplanation(pregunta, idusuario, {

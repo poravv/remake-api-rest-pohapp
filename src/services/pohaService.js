@@ -8,6 +8,7 @@ const { Op } = require('sequelize');
 const { OpenAI } = require('openai');
 const sequelize = require('../database');
 const { invalidateByPrefix } = require('../middleware/cache');
+const embeddingRegen = require('./embeddingRegenService');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -316,6 +317,15 @@ async function updatePoha(idpoha, data) {
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
 
+    // Content may have changed — refresh this poha's embedding so the
+    // assistant's retrieval step stays aligned with the current text.
+    // Best-effort: log but do not fail the update if OpenAI is down.
+    try {
+        await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+    } catch (err) {
+        console.error(`[updatePoha] embedding refresh failed for ${idpoha}:`, err.message);
+    }
+
     const updated = await getPohaById(idpoha);
     return updated ? updated.toJSON() : null;
 }
@@ -326,6 +336,11 @@ async function deletePoha(idpoha) {
     const result = await poha.destroy({ where: { idpoha } });
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
+    try {
+        await embeddingRegen.deleteEmbeddingForPoha(idpoha);
+    } catch (err) {
+        console.error(`[deletePoha] embedding cleanup failed for ${idpoha}:`, err.message);
+    }
     return result;
 }
 
@@ -380,7 +395,23 @@ async function approvePoha(idpoha) {
 
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
-    return { message: 'Remedio aprobado exitosamente', affected: result[0] };
+
+    // Refresh embedding on approval so the assistant immediately reflects
+    // any moderator edits made between submission and approval.
+    let embeddingStatus = 'skipped';
+    try {
+        const res = await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+        embeddingStatus = res.status;
+    } catch (err) {
+        console.error(`[approvePoha] embedding refresh failed for ${idpoha}:`, err.message);
+        embeddingStatus = 'error';
+    }
+
+    return {
+        message: 'Remedio aprobado exitosamente',
+        affected: result[0],
+        embeddingStatus,
+    };
 }
 
 async function rejectPoha(idpoha) {
