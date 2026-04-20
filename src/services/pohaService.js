@@ -13,7 +13,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const FULL_INCLUDES = [
     { model: autor },
-    { model: poha_planta, include: [{ model: planta }] },
+    {
+        model: poha_planta,
+        include: [{ model: planta }],
+        // Guarantee deterministic plant ordering within every poha response
+        // so list cards and detail view render plants in the same sequence.
+        order: [['idplanta', 'ASC']],
+    },
     { model: dolencias_poha, include: [{ model: dolencias }] },
 ];
 
@@ -178,21 +184,27 @@ async function getPohaFilteredPaginated(filters, page, pageSize) {
     const includesForFilter = buildFilterIncludes(filters);
     const offset = page * pageSize;
 
+    // Collect matching ids first (required:true joins can return duplicate
+    // rows when paginated directly — and Sequelize's subQuery wrapper trips
+    // on nested where clauses). Pulling ids, deduping in JS, then slicing
+    // keeps the query simple and the result stable. Safe while the total
+    // poha count stays modest.
     const matchingPohas = await poha.findAll({
         attributes: ['idpoha'],
         include: includesForFilter,
         where: whereConditions.length > 0 ? { [Op.and]: whereConditions } : {},
-        limit: pageSize,
-        offset,
+        order: [['idpoha', 'ASC']],
         raw: true,
     });
 
-    const matchingIds = matchingPohas.map(p => p.idpoha);
-    if (matchingIds.length === 0) return [];
+    const uniqueIds = [...new Set(matchingPohas.map(p => p.idpoha))];
+    const pageIds = uniqueIds.slice(offset, offset + pageSize);
+    if (pageIds.length === 0) return [];
 
     return poha.findAll({
-        where: { idpoha: { [Op.in]: matchingIds } },
+        where: { idpoha: { [Op.in]: pageIds } },
         include: FULL_INCLUDES,
+        order: [['idpoha', 'ASC']],
     });
 }
 
