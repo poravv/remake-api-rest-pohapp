@@ -23,6 +23,7 @@ const adminMetricsRoutes = require('./routes/admin/metrics');
 const adminCatalogRoutes = require('./routes/admin/catalog');
 const aporteRoutes = require('./routes/aporte');
 const uploadsRoutes = require('./routes/uploads');
+const dedupRoutes = require('./routes/dedup');
 const database = require('./database');
 const { signMinioUrls } = require('./middleware/signImages');
 const { cacheMiddleware } = require('./middleware/cache');
@@ -57,6 +58,9 @@ try {
     routes.use('/api/pohapp/imagenes', imagenes);
     routes.use('/api/pohapp/aporte', aporteRoutes);
     routes.use('/api/pohapp/uploads', uploadsRoutes);
+    // Dedup endpoints: /planta/similar and /dolencia/suggest. Public,
+    // lightly rate-limited so real-time suggest-while-typing is safe.
+    routes.use('/api/pohapp', dedupRoutes);
 
     // Readiness probe: valida que la DB esté alcanzable. Más estricto
     // que `/` (que sólo confirma que el process vive). La ruta debe
