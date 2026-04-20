@@ -32,7 +32,11 @@ data:
   # Redis / Cache
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"
-  CACHE_TTL_SECONDS: "300"
+  # Catalog reads (plantas, dolencias, pohãs) change only when admin
+  # approves content. Invalidation is explicit via invalidateByPrefix()
+  # on every mutation, so a longer TTL just reduces baseline DB load
+  # without risk of stale reads.
+  CACHE_TTL_SECONDS: "1800"
   RATE_LIMIT_WINDOW_MS: "60000"
   RATE_LIMIT_MAX: "120"
   RATE_LIMIT_AI_WINDOW_MS: "60000"

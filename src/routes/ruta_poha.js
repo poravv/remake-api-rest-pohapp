@@ -10,24 +10,7 @@ const {
     validatePendientes,
 } = require('../middleware/validation/poha.validation');
 
-const parsePagination = (req, res) => {
-    const hasPage = req.query.page !== undefined;
-    const hasPageSize = req.query.pageSize !== undefined;
-    if (!hasPage && !hasPageSize) return null;
-
-    const page = hasPage ? parseInt(req.query.page, 10) : 0;
-    const pageSize = hasPageSize ? parseInt(req.query.pageSize, 10) : 20;
-
-    if (Number.isNaN(page) || Number.isNaN(pageSize) || page < 0 || pageSize <= 0) {
-        res.status(400).json({ error: 'paginacion invalida' });
-        return null;
-    }
-
-    return {
-        limit: pageSize,
-        offset: page * pageSize,
-    };
-};
+const { parsePagination } = require('../utils/pagination');
 
 /**
  * @swagger
