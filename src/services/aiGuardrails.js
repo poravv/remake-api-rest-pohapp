@@ -206,11 +206,14 @@ function buildResponseSchema() {
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['nombre', 'url'],
+            // NOTE: OpenAI structured outputs require EVERY property declared
+            // under `properties` to appear in `required` when additionalProperties
+            // is false. Optional fields are expressed as union-with-null instead.
+            required: ['nombre', 'nombre_cientifico', 'url'],
             properties: {
               nombre: { type: 'string', maxLength: 200 },
-              nombre_cientifico: { type: 'string', maxLength: 200 },
-              // NOTE: OpenAI's structured-outputs json_schema rejects `format: 'uri'`.
+              nombre_cientifico: { type: ['string', 'null'], maxLength: 200 },
+              // `format: 'uri'` is also rejected by structured outputs —
               // URL shape is validated downstream in validateImages().
               url: { type: 'string', maxLength: 500 },
             },
