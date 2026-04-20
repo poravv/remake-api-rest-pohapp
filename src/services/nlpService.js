@@ -171,10 +171,12 @@ async function crossCheckImages(imgs, keptIdpoha) {
  * the sanitized user question. Context is a compact bullet list the model
  * can cite from; the model is instructed NOT to invent anything outside it.
  *
- * IMPORTANT: the numeric idpoha is intentionally NOT exposed in the string —
- * the model used to echo it back ("Jengibre (idpoha=21)") when it appeared
- * in the context label. IDs travel separately in the structured output
- * field `idpoha_refs`.
+ * We prefix each chunk with the token `[#<id>]`. That tag is the ONLY way
+ * the model learns which idpoha maps to which remedy, so it has to be here
+ * — otherwise the idpoha_refs array comes back empty and the guardrail
+ * rejects the response as NO_REFS. The system prompt now explicitly tells
+ * the model the tag is metadata-only and must never appear in the
+ * visible text (see aiGuardrails.buildSystemPrompt rule 3.b).
  */
 function buildContextoActual(plantas) {
   return plantas
@@ -191,7 +193,7 @@ function buildContextoActual(plantas) {
       } catch (_err) {
         // ignore — fall back to generic label
       }
-      return `${nombre}:\n${p.texto_entrenamiento}`;
+      return `[#${p.idpoha}] ${nombre}:\n${p.texto_entrenamiento}`;
     })
     .join('\n\n');
 }
