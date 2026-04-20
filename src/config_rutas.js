@@ -43,7 +43,7 @@ try {
     // routes.use(signMinioUrls);
     
     routes.use('/api/pohapp/dolencias', cacheMiddleware({ ttlSeconds: cacheTtl, prefix: 'dolencias' }), dolencias)
-    routes.use('/api/pohapp/planta', cacheMiddleware({ ttlSeconds: cacheTtl, prefix: 'plantas' }), planta)
+    routes.use('/api/pohapp/planta', cacheMiddleware({ ttlSeconds: cacheTtl, prefix: 'plantas' }), signMinioUrls, planta)
     routes.use('/api/pohapp/autor',autor)
     routes.use('/api/pohapp/usuario',usuario)
     routes.use('/api/pohapp/poha', cacheMiddleware({ ttlSeconds: cacheTtl, prefix: 'poha' }), signMinioUrls, poha)
