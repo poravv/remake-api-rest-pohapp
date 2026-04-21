@@ -2,6 +2,17 @@ const planta = require('../model/planta');
 const database = require('../database');
 const { QueryTypes, Op } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
+const { extractObjectName } = require('./minioService');
+
+// planta.img is varchar(300). Clients that upload via /admin/upload may hand us
+// a MinIO presigned URL (~500 chars of X-Amz-* params), which overflows the
+// column. Reduce any incoming img value to its canonical object key — same
+// shape the Flutter app already sends. No-op for values that are already clean.
+function sanitizeImgField(data) {
+    if (!data || typeof data !== 'object') return data;
+    if (typeof data.img !== 'string' || data.img.length === 0) return data;
+    return { ...data, img: extractObjectName(data.img) };
+}
 
 async function searchByNombre(nombre) {
     return database.query(
@@ -65,7 +76,7 @@ async function createPlanta(data, authUser) {
         estado = 'AC';
     }
 
-    const plantaData = { ...data, estado };
+    const plantaData = sanitizeImgField({ ...data, estado });
     const result = await planta.create(plantaData);
     invalidateByPrefix('plantas');
     invalidateByPrefix('medicinales');
@@ -73,7 +84,7 @@ async function createPlanta(data, authUser) {
 }
 
 async function updatePlanta(idplanta, data) {
-    const result = await planta.update(data, { where: { idplanta } });
+    const result = await planta.update(sanitizeImgField(data), { where: { idplanta } });
     invalidateByPrefix('plantas');
     invalidateByPrefix('medicinales');
     return result;
