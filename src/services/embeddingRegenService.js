@@ -1,3 +1,5 @@
+// DEPRECATED (claude-semantic-search): usar catalogRegenService.js. Mantenido para rollback.
+
 /**
  * Reusable embedding regeneration pipeline.
  *

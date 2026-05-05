@@ -45,7 +45,7 @@ const mockNlpService = {
   getChatHistory: jest.fn(),
   getMetrics: jest.fn().mockReturnValue({}),
 };
-jest.mock('../../src/services/nlpService', () => mockNlpService);
+jest.mock('../../src/services/claudeNlpService', () => mockNlpService);
 
 jest.mock('../../src/database', () => ({
   query: jest.fn().mockResolvedValue([[]]),
@@ -97,15 +97,15 @@ function buildApp() {
 
 describe('POST /api/pohapp/query-nlp/explica (guardrails)', () => {
   let app;
-  const originalKey = process.env.OPENAI_API_KEY;
+  const originalKey = process.env.ANTHROPIC_API_KEY;
 
   beforeAll(() => {
-    process.env.OPENAI_API_KEY = 'test-key';
+    process.env.ANTHROPIC_API_KEY = 'test-key';
     app = buildApp();
   });
 
   afterAll(() => {
-    process.env.OPENAI_API_KEY = originalKey;
+    process.env.ANTHROPIC_API_KEY = originalKey;
   });
 
   beforeEach(() => {

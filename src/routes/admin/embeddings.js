@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, requireAdmin } = require('../../middleware/auth');
 const rateLimitAdmin = require('../../middleware/rateLimitAdmin');
-const embeddingRegen = require('../../services/embeddingRegenService');
+const catalogRegen = require('../../services/catalogRegenService');
 
 router.use(verifyToken, requireAdmin, rateLimitAdmin);
 
@@ -39,16 +39,16 @@ router.use(verifyToken, requireAdmin, rateLimitAdmin);
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
  *       '503':
- *         description: OPENAI_API_KEY no configurada
+ *         description: Error al reconstruir el catálogo Claude
  */
 router.post('/regenerate', async (_req, res) => {
   try {
-    const summary = await embeddingRegen.regenerateAllEmbeddings();
+    const summary = await catalogRegen.regenerateCatalog();
     res.json(summary);
   } catch (err) {
-    console.error('[admin/embeddings] retrain failed:', err);
+    console.error('[admin/embeddings] catalog rebuild failed:', err);
     res.status(err.statusCode || 500).json({
-      error: 'Error regenerando embeddings',
+      error: 'Error regenerando catálogo',
       message: err.message,
     });
   }
@@ -84,12 +84,12 @@ router.post('/regenerate/:idpoha', async (req, res) => {
     return res.status(400).json({ error: 'idpoha invalido' });
   }
   try {
-    const result = await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+    const result = await catalogRegen.invalidateCatalogForPoha(idpoha);
     res.json(result);
   } catch (err) {
-    console.error('[admin/embeddings] single retrain failed:', err);
+    console.error('[admin/embeddings] single catalog invalidation failed:', err);
     res.status(err.statusCode || 500).json({
-      error: 'Error regenerando embedding',
+      error: 'Error invalidando catálogo',
       message: err.message,
     });
   }

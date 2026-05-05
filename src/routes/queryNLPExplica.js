@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const nlpService = require('../services/nlpService');
+const nlpService = require('../services/claudeNlpService');
 const { validateNlpExplica } = require('../middleware/validation/nlp.validation');
 const { verifyToken } = require('../middleware/auth');
 
@@ -77,16 +77,16 @@ function requireJsonContentType(req, res, next) {
  *       '429': { $ref: '#/components/responses/RateLimited' }
  *       '500': { $ref: '#/components/responses/ServerError' }
  *       '503':
- *         description: OPENAI_API_KEY no configurada en el backend
+ *         description: ANTHROPIC_API_KEY no configurada en el backend
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.post('/', verifyToken, requireJsonContentType, validateNlpExplica, async (req, res) => {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({
       error: 'Servicio de IA no configurado',
-      message: 'Falta OPENAI_API_KEY en el backend',
+      message: 'Falta ANTHROPIC_API_KEY en el backend',
     });
   }
 

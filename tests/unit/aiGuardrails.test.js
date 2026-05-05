@@ -122,11 +122,8 @@ describe('aiGuardrails.shouldPersist', () => {
       .toEqual({ persist: false, reason: REASONS.FUERA_DE_DOMINIO });
   });
 
-  it('rejects below similarity threshold', () => {
-    const low = SIMILARITY_THRESHOLD - 0.01;
-    expect(shouldPersist({ ...baseCtx, similarityTop1: low }).reason)
-      .toBe(REASONS.LOW_SIMILARITY);
-  });
+  // REMOVED (claude-semantic-search): LOW_SIMILARITY gate eliminado — shouldPersist ya no chequea similarityTop1
+  // it('rejects below similarity threshold', () => { ... });
 
   it('rejects below confidence threshold', () => {
     const low = CONFIDENCE_THRESHOLD - 0.01;

@@ -18,6 +18,12 @@ data:
   # Model Configuration
   MODEL_VERSION: "v20250504"
 
+  # Claude AI — claude-semantic-search
+  # NOTA: ANTHROPIC_API_KEY es sensible → debe agregarse al Secret pohapp-backend-env-secrets
+  CLAUDE_MODEL: "claude-haiku-4-5-20251001"
+  CLAUDE_CATALOG_CACHE_KEY: "claude_catalog:v1"
+  CLAUDE_CATALOG_TTL_SECONDS: "3600"
+
   # MinIO Configuration
   MINIO_BUCKET_NAME: "bucket-pohapp"
   MINIO_HOST: "minio.mindtechpy.net"

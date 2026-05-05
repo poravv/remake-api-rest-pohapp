@@ -143,7 +143,9 @@ jobs:
             --from-literal=MINIO_BUCKET_NAME="${{ secrets.MINIO_BUCKET_NAME }}" \
             --from-literal=MINIO_HOST="${{ secrets.MINIO_HOST }}" \
             --from-literal=MINIO_ENDPOINT="${{ secrets.MINIO_ENDPOINT }}" \
-            --from-literal=MINIO_REGION="${{ secrets.MINIO_REGION }}"
+            --from-literal=MINIO_REGION="${{ secrets.MINIO_REGION }}" \
+            --from-literal=ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+            --from-literal=FIREBASE_SERVICE_ACCOUNT_JSON="${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}"
 
       - name: Create/Update Firebase service account secret
         run: |

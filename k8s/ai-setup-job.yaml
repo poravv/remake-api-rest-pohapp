@@ -15,7 +15,7 @@ spec:
           command:
             - sh
             - -c
-            - node src/scripts/setup_ai.js && node src/scripts/generarEmbeddings.js
+            - node src/scripts/setup_ai.js
           envFrom:
             - configMapRef:
                 name: pohapp-backend-config

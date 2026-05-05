@@ -5,12 +5,12 @@ const autor = require('../model/autor');
 const planta = require('../model/planta');
 const dolencias = require('../model/dolencias');
 const { Op } = require('sequelize');
-const { OpenAI } = require('openai');
+// DEPRECATED (claude-semantic-search): const { OpenAI } = require('openai');
 const sequelize = require('../database');
 const { invalidateByPrefix } = require('../middleware/cache');
-const embeddingRegen = require('./embeddingRegenService');
+const catalogRegen = require('./catalogRegenService');
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// DEPRECATED (claude-semantic-search): const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const FULL_INCLUDES = [
     { model: autor },
@@ -275,22 +275,8 @@ async function createPoha(data, authUser) {
         };
     }
 
-    // Create embedding
-    const embeddingResponse = await openai.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: textoEntrenamiento,
-    });
-
-    const embedding = embeddingResponse.data[0].embedding;
-
-    // Save to medicina_embeddings
-    await sequelize.query(`
-        INSERT INTO medicina_embeddings (idpoha, resumen, embedding)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE resumen = VALUES(resumen), embedding = VALUES(embedding)
-    `, {
-        replacements: [nuevoPoha.idpoha, textoEntrenamiento, JSON.stringify(embedding)],
-    });
+    // Invalidate catalog so next query picks up the new poha
+    await catalogRegen.invalidateCatalogForPoha(nuevoPoha.idpoha);
 
     return {
         ...(pohaWithRelations ? pohaWithRelations.toJSON() : nuevoPoha.toJSON()),
@@ -317,13 +303,12 @@ async function updatePoha(idpoha, data) {
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
 
-    // Content may have changed — refresh this poha's embedding so the
-    // assistant's retrieval step stays aligned with the current text.
-    // Best-effort: log but do not fail the update if OpenAI is down.
+    // Content may have changed — invalidate catalog so the next Claude query
+    // picks up the updated text. Best-effort: log but do not fail the update.
     try {
-        await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+        await catalogRegen.invalidateCatalogForPoha(idpoha);
     } catch (err) {
-        console.error(`[updatePoha] embedding refresh failed for ${idpoha}:`, err.message);
+        console.error(`[updatePoha] catalog invalidation failed for ${idpoha}:`, err.message);
     }
 
     const updated = await getPohaById(idpoha);
@@ -337,9 +322,9 @@ async function deletePoha(idpoha) {
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
     try {
-        await embeddingRegen.deleteEmbeddingForPoha(idpoha);
+        await catalogRegen.invalidateCatalogForPoha(idpoha);
     } catch (err) {
-        console.error(`[deletePoha] embedding cleanup failed for ${idpoha}:`, err.message);
+        console.error(`[deletePoha] catalog invalidation failed for ${idpoha}:`, err.message);
     }
     return result;
 }
@@ -396,14 +381,14 @@ async function approvePoha(idpoha) {
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
 
-    // Refresh embedding on approval so the assistant immediately reflects
+    // Invalidate catalog on approval so the assistant immediately reflects
     // any moderator edits made between submission and approval.
     let embeddingStatus = 'skipped';
     try {
-        const res = await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
-        embeddingStatus = res.status;
+        await catalogRegen.invalidateCatalogForPoha(idpoha);
+        embeddingStatus = 'invalidated';
     } catch (err) {
-        console.error(`[approvePoha] embedding refresh failed for ${idpoha}:`, err.message);
+        console.error(`[approvePoha] catalog invalidation failed for ${idpoha}:`, err.message);
         embeddingStatus = 'error';
     }
 

@@ -29,7 +29,7 @@ const mockNlpService = {
   queryPreview: jest.fn(),
   getChatHistory: jest.fn(),
 };
-jest.mock('../../src/services/nlpService', () => mockNlpService);
+jest.mock('../../src/services/claudeNlpService', () => mockNlpService);
 
 jest.mock('../../src/services/pohaService', () => ({
   countPoha: jest.fn().mockResolvedValue(0),

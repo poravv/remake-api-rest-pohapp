@@ -1,3 +1,7 @@
+// DEPRECATED (claude-semantic-search): este script ya no se ejecuta.
+// El catálogo Claude se construye dinámicamente desde vw_medicina_entrenamiento.
+// Conservado para rollback. El K8s ai-setup-job.yaml ya no lo invoca.
+
 /**
  * Idempotent embedding regeneration for medicina_embeddings.
  *
