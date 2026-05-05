@@ -17,6 +17,42 @@ services:
     networks:
       - pohapp-net
 
+  minio:
+    image: minio/minio:latest
+    container_name: pohapp-minio
+    ports:
+      - "9000:9000"   # API / SDK
+      - "9001:9001"   # Console web → http://localhost:9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - pohapp-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: pohapp-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin &&
+        mc mb --ignore-existing local/bucket-pohapp &&
+        mc anonymous set download local/bucket-pohapp
+      "
+    networks:
+      - pohapp-net
+    restart: "no"
+
   pohapp-back:
     build:
       context: ../
@@ -26,11 +62,13 @@ services:
     env_file:
       - ../.env
     environment:
+      # DB — override .env para usar el contenedor local
       DB_PASSWORD: pohapp2024
       DB_HOST: db-pohapp
       DB_USER: root
       DB_PORT: 3306
       DB_NAME: db-pohapp
+      # Redis — override .env para usar el contenedor local
       REDIS_HOST: redis
       REDIS_PORT: 6379
       CACHE_TTL_SECONDS: 300
@@ -38,12 +76,25 @@ services:
       RATE_LIMIT_MAX: 120
       RATE_LIMIT_AI_WINDOW_MS: 60000
       RATE_LIMIT_AI_MAX: 30
+      # MinIO — override .env para usar el contenedor local (no prod)
+      MINIO_HOST: minio
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_SIGNING_HOST: http://localhost:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_NAME: bucket-pohapp
+      MINIO_REGION: us-east-1
+      # Firebase — usar el JSON montado como volumen (no el path del .env)
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-sa.json
+    volumes:
+      - ../pohapp-8f1ab-firebase-adminsdk-1tllf-2ab153afae.json:/app/firebase-sa.json:ro
     container_name: pohapp-back-container
     networks:
       - pohapp-net
     depends_on:
       - db-pohapp
       - redis
+      - minio-init
 
   pohapp-ai-setup:
     build:
@@ -78,6 +129,7 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  minio_data:
 
 networks:
   pohapp-net:
