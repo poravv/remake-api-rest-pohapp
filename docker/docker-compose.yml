@@ -57,7 +57,7 @@ services:
       DB_USER: root
       DB_PORT: 3306
       DB_NAME: db-pohapp
-    command: ["sh","-c","node src/scripts/setup_ai.js && node src/scripts/generarEmbeddings.js"]
+    command: ["node","src/scripts/setup_ai.js"]
     depends_on:
       - db-pohapp
     networks:
