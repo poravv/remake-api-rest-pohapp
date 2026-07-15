@@ -1,0 +1,73 @@
+# MinIO PROPIO de pohapp — interno (ClusterIP, SIN ingress/HTTPRoute, no expuesto).
+# El backend accede por el servicio interno; el navegador recibe las imágenes por el
+# proxy del backend (/api/pohapp/imagenes/proxy/*, stream). Bucket privado.
+# Root creds = MINIO_ACCESS_KEY/SECRET_KEY del secret pohapp-backend-env-secrets (mismas que usa el backend).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pohapp-minio-data
+  namespace: pohapp-backend
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pohapp-minio
+  namespace: pohapp-backend
+  labels: { app: pohapp-minio }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: pohapp-minio }
+  template:
+    metadata:
+      labels: { app: pohapp-minio }
+    spec:
+      containers:
+        - name: minio
+          image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef: { name: pohapp-backend-env-secrets, key: MINIO_ACCESS_KEY }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: pohapp-backend-env-secrets, key: MINIO_SECRET_KEY }
+          ports:
+            - { containerPort: 9000, name: api }
+            - { containerPort: 9001, name: console }
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: 9000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /minio/health/live, port: 9000 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: pohapp-minio-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pohapp-minio
+  namespace: pohapp-backend
+  labels: { app: pohapp-minio }
+spec:
+  selector: { app: pohapp-minio }
+  ports:
+    - { name: api, port: 9000, targetPort: 9000 }
+    - { name: console, port: 9001, targetPort: 9001 }

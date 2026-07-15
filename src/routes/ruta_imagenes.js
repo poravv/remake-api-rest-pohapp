@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const {
+  minioClient,
+  bucketName,
   getPresignedUrl,
   getPresignedUrls,
   extractObjectName,
@@ -142,16 +144,37 @@ router.get('/proxy/*', async (req, res) => {
       });
     }
 
-    const signedUrl = await getPresignedUrl(objectName);
+    // STREAM directo desde MinIO (interno) -> el navegador nunca toca MinIO.
+    // Así el bucket queda privado y MinIO 100% interno (sin exponer).
+    let stat;
+    try {
+      stat = await minioClient.statObject(bucketName, objectName);
+    } catch (e) {
+      return res.status(404).json({ error: 'Imagen no encontrada' });
+    }
 
-    // Redirigir a la URL firmada
-    res.redirect(307, signedUrl);
+    const contentType =
+      (stat.metaData &&
+        (stat.metaData['content-type'] || stat.metaData['Content-Type'])) ||
+      'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    if (stat.size) res.setHeader('Content-Length', stat.size);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    const stream = await minioClient.getObject(bucketName, objectName);
+    stream.on('error', (err) => {
+      console.error('Error en stream de imagen:', err.message);
+      if (!res.headersSent) res.status(500).end();
+    });
+    stream.pipe(res);
   } catch (error) {
     console.error('Error en proxy de imagen:', error);
-    res.status(500).json({
-      error: 'Error obteniendo imagen',
-      message: error.message,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Error obteniendo imagen',
+        message: error.message,
+      });
+    }
   }
 });
 

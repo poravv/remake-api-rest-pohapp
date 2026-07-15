@@ -1,19 +1,9 @@
-const { getPresignedUrl, isMinioUrl, extractObjectName } = require('../services/minioService');
+const { getProxyUrl, isMinioUrl, extractObjectName } = require('../services/minioService');
 
 /**
  * Middleware para firmar automáticamente URLs de MinIO en las respuestas
  * Busca campos 'img', 'imagen', 'image' y 'imageUrl' en los objetos de respuesta
  */
-const isPresignedUrl = (value) => {
-  if (!value) return false;
-  return /[?&]X-Amz-(Algorithm|Signature|Credential)=/i.test(value);
-};
-
-const preferredEndpoint =
-  process.env.MINIO_ENDPOINT || 'minpoint.mindtechpy.net';
-const hasPreferredHost = (value) =>
-  typeof value === 'string' && value.includes(preferredEndpoint);
-
 const signMinioUrls = async (req, res, next) => {
   // Si el query param disableImageSigning está presente, no firmar
   if (req.query.disableImageSigning === 'true') {
@@ -61,48 +51,36 @@ const signMinioUrls = async (req, res, next) => {
           if (newObj[field] && typeof newObj[field] === 'string') {
             const fieldValue = newObj[field];
             
-            // Caso 1: Es una URL completa de MinIO -> Firmar
+            // Caso 1: URL completa de MinIO -> URL del PROXY interno del backend
             if (isMinioUrl(fieldValue)) {
-              if (isPresignedUrl(fieldValue) && hasPreferredHost(fieldValue)) {
-                continue;
+              if (fieldValue.includes('/imagenes/proxy/')) {
+                continue; // ya es una URL de proxy
               }
               urlsFound++;
               try {
                 const objectName = extractObjectName(fieldValue);
-                const signPromise = getPresignedUrl(objectName, 86400);
-                const timeoutPromise = new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Timeout')), 3000)
-                );
-                const signedUrl = await Promise.race([signPromise, timeoutPromise]);
-                
+                const proxyUrl = getProxyUrl(objectName);
                 newObj[`${field}_original`] = fieldValue;
-                newObj[field] = signedUrl;
-                newObj[`${field}_signed`] = signedUrl;
-                newObj[`${field}_expires_in`] = 86400;
+                newObj[field] = proxyUrl;
+                newObj[`${field}_signed`] = proxyUrl;
                 urlsSigned++;
               } catch (error) {
                 urlsFailed++;
-                console.error(`❌ Error firmando URL: ${fieldValue} - ${error.message}`);
+                console.error(`❌ Error generando proxy URL: ${fieldValue} - ${error.message}`);
               }
             }
-            // Caso 2: Es solo un nombre de archivo (sin http/https) -> Generar URL firmada
+            // Caso 2: Solo un nombre de archivo (key) -> URL del PROXY interno
             else if (fieldValue && !fieldValue.startsWith('http') && fieldValue.trim().length > 0) {
               urlsFound++;
               try {
-                const signPromise = getPresignedUrl(fieldValue, 86400);
-                const timeoutPromise = new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Timeout')), 3000)
-                );
-                const signedUrl = await Promise.race([signPromise, timeoutPromise]);
-                
-                newObj[`${field}_original`] = fieldValue; // Nombre del archivo original
-                newObj[field] = signedUrl;
-                newObj[`${field}_signed`] = signedUrl;
-                newObj[`${field}_expires_in`] = 86400;
+                const proxyUrl = getProxyUrl(fieldValue);
+                newObj[`${field}_original`] = fieldValue; // key original
+                newObj[field] = proxyUrl;
+                newObj[`${field}_signed`] = proxyUrl;
                 urlsSigned++;
               } catch (error) {
                 urlsFailed++;
-                console.error(`❌ Error firmando archivo: ${fieldValue} - ${error.message}`);
+                console.error(`❌ Error generando proxy URL: ${fieldValue} - ${error.message}`);
               }
             }
           }

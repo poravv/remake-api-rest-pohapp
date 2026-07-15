@@ -43,6 +43,20 @@ const minioClient = new Minio.Client({
 
 const bucketName = process.env.MINIO_BUCKET_NAME || 'bucket-pohapp';
 
+// URL pública del PROXY del backend: el navegador pega acá y el backend hace
+// getObject + stream desde MinIO (que queda 100% interno, sin exponer).
+// Base configurable por env; default apunta al backend público con prefijo /pohapp.
+const imageProxyBaseUrl = (
+  process.env.IMAGE_PROXY_BASE_URL || 'https://back.mindtechpy.net/pohapp'
+).replace(/\/+$/, '');
+const getProxyUrl = (objectName) => {
+  const encoded = String(objectName)
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/');
+  return `${imageProxyBaseUrl}/api/pohapp/imagenes/proxy/${encoded}`;
+};
+
 console.log('🔧 MinIO Client configurado:');
 console.log('   - Host (firma):', minioSigningHost);
 console.log('   - Endpoint (public):', minioEndpoint);
@@ -267,6 +281,7 @@ const listImages = async (prefix = '') => {
 module.exports = {
   minioClient,
   bucketName,
+  getProxyUrl,
   getPresignedUrl,
   getPresignedUrls,
   getPresignedPutUrl,

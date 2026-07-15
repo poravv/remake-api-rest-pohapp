@@ -188,6 +188,14 @@ jobs:
           echo "⏳ Waiting pod readiness (label app=redis)..."
           kubectl wait --for=condition=ready pod -l app=redis -n ${{ env.NAMESPACE }} --timeout=600s
 
+      - name: Deploy MinIO (interno)
+        run: |
+          set -euo pipefail
+          echo "🗄️  Applying MinIO propio (interno, sin exponer)..."
+          kubectl apply -f k8s/minio.yaml -n ${{ env.NAMESPACE }}
+          echo "⏳ Waiting rollout for MinIO deployment..."
+          kubectl rollout status deployment/pohapp-minio -n ${{ env.NAMESPACE }} --timeout=600s
+
       - name: Get short SHA
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
