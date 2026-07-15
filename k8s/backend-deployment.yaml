@@ -74,8 +74,7 @@ spec:
       - name: firebase-sa
         secret:
           secretName: firebase-service-account
-      imagePullSecrets:
-      - name: ghcr-secret
+      # Sin imagePullSecrets: el paquete GHCR remake-api-rest-pohapp es PÚBLICO (pull anónimo).
 ---
 apiVersion: v1
 kind: Service

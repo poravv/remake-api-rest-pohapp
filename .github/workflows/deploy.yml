@@ -77,7 +77,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # nativo (permissions: packages: write); sin PAT manual
 
       - name: Extract metadata
         id: meta
@@ -107,14 +107,8 @@ jobs:
         run: |
           kubectl get ns ${{ env.NAMESPACE }} || kubectl create ns ${{ env.NAMESPACE }}
 
-      - name: Create/Update image pull secret (GHCR)
-        run: |
-          kubectl create secret docker-registry ghcr-secret \
-            --docker-server=${{ env.REGISTRY }} \
-            --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GHCR_PAT }} \
-            --namespace=${{ env.NAMESPACE }} \
-            --dry-run=client -o yaml | kubectl apply -f -
+      # Sin image pull secret: el paquete GHCR es PÚBLICO (pull anónimo).
+      # Si se volviera privado, restaurar este paso con un PAT en secrets.GHCR_PAT.
 
       - name: Create/Update application secrets
         run: |
