@@ -25,7 +25,10 @@ spec:
     spec:
       containers:
       - name: pohapp-backend
-        image: ghcr.io/poravv/remake-api-rest-pohapp:latest
+        # Pin por versión de release (package.json) — ArgoCD solo redespliega si
+        # el manifiesto cambia; :latest no genera diff. El CI taggea la imagen
+        # con esta misma versión.
+        image: ghcr.io/poravv/remake-api-rest-pohapp:v1.1.0
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
