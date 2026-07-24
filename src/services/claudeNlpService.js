@@ -25,6 +25,8 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const HISTORY_WINDOW_MINUTES = 15;
 const OFF_DOMAIN_FALLBACK = 'Solo puedo responder sobre plantas medicinales paraguayas.';
 const NO_CONTEXT_FALLBACK = 'No tengo informacion suficiente en la base de conocimiento.';
+const SERVICE_UNAVAILABLE_FALLBACK =
+  'El asistente no esta disponible en este momento. Intenta de nuevo en unos minutos.';
 
 const metricsCounters = {
   LOW_CONFIDENCE: 0,
@@ -187,7 +189,15 @@ async function queryWithExplanation(pregunta, idusuario) {
     const decision = { reason: aiGuardrails.REASONS.SCHEMA_FAIL };
     metricsCounters[decision.reason] += 1;
     logGuardrail(decision, { stage: 'claude-call', error: err.message });
-    return buildRejectionResponse(decision.reason);
+    // Error de API (creditos, timeout, 5xx) != rechazo de dominio: mensaje
+    // honesto para el usuario en vez del fallback "solo respondo sobre plantas".
+    return {
+      ids: [],
+      explicacion: SERVICE_UNAVAILABLE_FALLBACK,
+      imagenes: [],
+      fuera_de_dominio: false,
+      reason: 'SERVICE_UNAVAILABLE',
+    };
   }
 
   if (toolInput.off_topic) {
