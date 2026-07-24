@@ -174,6 +174,14 @@ async function queryWithExplanation(pregunta, idusuario) {
     });
 
     toolInput = extractToolResult(response);
+    // imagenes_refs no es required en el tool schema — normalizar antes de validar.
+    toolInput.imagenes_refs = Array.isArray(toolInput.imagenes_refs) ? toolInput.imagenes_refs : [];
+    if (!toolInput.off_topic) {
+      const parsed = aiGuardrails.parseSchema(toolInput);
+      if (!parsed.ok) throw new Error(`tool input invalido: ${parsed.reason}`);
+      toolInput = parsed.payload;
+    }
+    toolInput.respuesta = aiGuardrails.stripMarkdown(toolInput.respuesta);
   } catch (err) {
     console.error('claudeNlpService: Claude API error:', err.message);
     const decision = { reason: aiGuardrails.REASONS.SCHEMA_FAIL };
