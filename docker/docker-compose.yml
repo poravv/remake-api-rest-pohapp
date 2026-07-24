@@ -77,13 +77,19 @@ services:
       RATE_LIMIT_AI_WINDOW_MS: 60000
       RATE_LIMIT_AI_MAX: 30
       # MinIO — override .env para usar el contenedor local (no prod)
+      # endPoint del SDK acepta solo hostname, sin http://
       MINIO_HOST: minio
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_SIGNING_HOST: http://localhost:9000
+      MINIO_ENDPOINT: minio
+      MINIO_SIGNING_HOST: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_PATH_STYLE: "true"
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET_NAME: bucket-pohapp
       MINIO_REGION: us-east-1
+      # Proxy de imágenes — sin esto el default apunta a prod (back.mindtechpy.net)
+      IMAGE_PROXY_BASE_URL: http://localhost:3000
       # Firebase — usar el JSON montado como volumen (no el path del .env)
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-sa.json
     volumes:
