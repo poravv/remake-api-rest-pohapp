@@ -85,7 +85,6 @@ SELECT
     -- Texto enriquecido para embeddings
     CONCAT_WS('. ',
         CONCAT('Esta preparación es útil para tratar: ', GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ')),
-        CONCAT('Dolencias mencionadas: ', GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ')),
         CONCAT('Modo de preparación sugerido: ', MAX(p.preparado)),
         CONCAT('Precauciones: ', IFNULL(MAX(p.recomendacion), 'Ninguna advertencia importante.')),
         CONCAT('Esta mezcla contiene las siguientes plantas: ',

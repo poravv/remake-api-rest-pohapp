@@ -52,7 +52,6 @@ async function main() {
 
         CONCAT_WS('. ',
             CONCAT('Esta preparacion es util para tratar: ', GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ')),
-            CONCAT('Dolencias mencionadas: ', GROUP_CONCAT(DISTINCT d.descripcion SEPARATOR ', ')),
             CONCAT('Modo de preparacion sugerido: ', MAX(p.preparado)),
             CONCAT('Precauciones: ', IFNULL(MAX(p.recomendacion), 'Ninguna advertencia importante.')),
             CONCAT('Esta mezcla contiene las siguientes plantas: ',
