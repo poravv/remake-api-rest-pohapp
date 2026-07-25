@@ -43,6 +43,11 @@ function activityLog(req, res, next) {
 
   const start = Date.now();
   res.on('finish', () => {
+    // Bots escanean el dominio buscando rutas PHP/WordPress y llenan la traza
+    // de 404. Solo interesa lo que va a la API; un 5xx se registra igual.
+    const esRutaApi = req.path.startsWith('/api/pohapp');
+    if (!esRutaApi && res.statusCode < 500) return;
+
     const ms = Date.now() - start;
     const estado = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'AVISO' : 'OK';
     console.log(
