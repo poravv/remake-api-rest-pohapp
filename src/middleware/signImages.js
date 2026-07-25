@@ -113,7 +113,7 @@ const signMinioUrls = async (req, res, next) => {
       // Solo se reporta cuando hubo trabajo real o fallos: firmar 0 URLs en
       // cada respuesta llenaba los logs sin aportar informacion.
       if (urlsSigned > 0 || urlsFailed > 0) {
-        console.log(`🖼️  ${urlsSigned} imagen(es) firmada(s) en ${duration}ms${urlsFailed ? ` — ${urlsFailed} fallida(s)` : ''}`);
+        console.log(`[IMG] ${urlsSigned} imagen(es) firmada(s) en ${duration}ms${urlsFailed ? ` - ${urlsFailed} fallida(s)` : ''}`);
       }
 
       return originalJson(signedData);
