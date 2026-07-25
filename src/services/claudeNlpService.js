@@ -1,16 +1,19 @@
 /**
  * Claude-based orchestrator for the /query-nlp/explica pipeline.
  *
- * Replaces nlpService.js (OpenAI + embeddings) with Claude Haiku via tool use
- * and prompt caching. The full poha catalog lives in the cached system prompt,
- * so no per-request embedding retrieval is needed.
+ * Two context modes behind AI_CONTEXT_MODE (buildModelInput is the ONLY
+ * branch point — design D1):
+ *  - catalog (default): full poha catalog in the cached system prompt.
+ *  - rag: retrievalService top-k context in the user turn, static rules
+ *    system prompt (no cache_control — too small to cache), images derived
+ *    from the DB instead of the model output.
  *
  * Responsibilities:
  *  - Sanitize and injection-check user input.
- *  - Load the catalog (Redis-cached) and inject it into Claude's system prompt.
+ *  - Build the model input per AI_CONTEXT_MODE (catalog or retrieval).
  *  - Retrieve recent chat history for conversational continuity.
  *  - Call Claude with tool_choice=required so the response is always structured.
- *  - Cross-check idpoha refs and image URLs against the DB.
+ *  - Cross-check idpoha refs (and, in rag, the retrieved subset) against the DB.
  *  - Gate persistence through aiGuardrails.shouldPersist.
  *  - Persist to chat_historial on gate pass.
  */
@@ -19,6 +22,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const sequelize = require('../database');
 const aiGuardrails = require('./aiGuardrails');
 const catalogService = require('./catalogService');
+const retrievalService = require('./retrievalService');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -31,11 +35,14 @@ const SERVICE_UNAVAILABLE_FALLBACK =
 const metricsCounters = {
   LOW_CONFIDENCE: 0,
   FUERA_DE_DOMINIO: 0,
+  LOW_SIMILARITY: 0,
   NO_REFS: 0,
   SCHEMA_FAIL: 0,
   INJECTION_DETECTED: 0,
   OK: 0,
 };
+
+const isRagMode = () => process.env.AI_CONTEXT_MODE === 'rag';
 
 function logGuardrail(decision, extra) {
   try {
@@ -43,6 +50,99 @@ function logGuardrail(decision, extra) {
   } catch (_err) {
     // Logging must never throw upstream.
   }
+}
+
+/** Structured token-usage log per Claude call — feeds the <=4k input check post-cutover. */
+function logUsage(response) {
+  try {
+    console.log(
+      JSON.stringify({
+        event: 'claude_usage',
+        mode: isRagMode() ? 'rag' : 'catalog',
+        model: response.model,
+        usage: response.usage,
+      })
+    );
+  } catch (_err) {
+    // Logging must never throw upstream.
+  }
+}
+
+/**
+ * Single AI_CONTEXT_MODE branch point (design D1). Everything downstream
+ * (Claude call, cross-checks, gate, persistence) is mode-agnostic.
+ *
+ * @param {string} preguntaSafe sanitized question
+ * @param {Array<{pregunta:string, respuesta:string}>} historial 15-min window rows
+ * @returns {Promise<{system:object[]|string, tools:object[], userContent:string,
+ *   retrieval:{ids:number[], contexto:string|null, similarityTop1:number, degraded:boolean}|null}>}
+ *   `retrieval` is null in catalog mode.
+ */
+async function buildModelInput(preguntaSafe, historial) {
+  if (!isRagMode()) {
+    const catalogo = await catalogService.loadCatalog();
+    return {
+      system: [
+        {
+          type: 'text',
+          text: aiGuardrails.buildSystemPrompt(catalogo),
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      tools: [aiGuardrails.buildResponderTool()],
+      userContent: preguntaSafe,
+      retrieval: null,
+    };
+  }
+
+  const lastUserQuestion =
+    historial.length > 0 ? historial[historial.length - 1].pregunta : undefined;
+  const retrieval = await retrievalService.retrieve(preguntaSafe, { lastUserQuestion });
+  const userContent = retrieval.contexto
+    ? `${preguntaSafe}\n\nContexto de pohã disponible (cita estas plantas por nombre; no repitas identificadores numéricos en el texto):\n${retrieval.contexto}`
+    : preguntaSafe;
+  // Sin cache_control: el prompt de reglas (~600 tokens) esta por debajo del
+  // minimo cacheable de Haiku (4096) y el contexto cambia por request (D5).
+  return {
+    system: aiGuardrails.buildRagSystemPrompt(),
+    tools: [aiGuardrails.buildResponderToolRag()],
+    userContent,
+    retrieval,
+  };
+}
+
+/**
+ * Deterministic image derivation for rag mode (design D4): the model never
+ * emits URLs, so images come straight from planta.img for the validated refs.
+ * Same item shape as catalog mode ({nombre, nombre_cientifico, imagen}) so
+ * signMinioUrls and the Flutter contract stay unchanged.
+ *
+ * @param {number[]} keptRefs idpoha refs that survived all cross-checks
+ * @returns {Promise<Array<{nombre:string, nombre_cientifico:string, imagen:string}>>}
+ */
+async function buildImagesForRefs(keptRefs) {
+  if (!Array.isArray(keptRefs) || keptRefs.length === 0) return [];
+  const [rows] = await sequelize.query(
+    `SELECT DISTINCT pl.nombre, pl.nombre_cientifico, pl.img AS imagen
+       FROM planta pl
+       JOIN poha_planta pp ON pp.idplanta = pl.idplanta
+      WHERE pp.idpoha IN (${keptRefs.map(() => '?').join(',')})
+        AND pl.img IS NOT NULL AND pl.img <> ''
+      LIMIT ${aiGuardrails.MAX_IMAGE_REFS}`,
+    { replacements: keptRefs }
+  );
+  const seen = new Set();
+  const imagenes = [];
+  for (const row of rows) {
+    if (seen.has(row.imagen)) continue;
+    seen.add(row.imagen);
+    imagenes.push({
+      nombre: row.nombre,
+      nombre_cientifico: row.nombre_cientifico,
+      imagen: row.imagen,
+    });
+  }
+  return imagenes;
 }
 
 /**
@@ -142,8 +242,6 @@ async function queryWithExplanation(pregunta, idusuario) {
     return buildRejectionResponse(decision.reason);
   }
 
-  const catalogo = await catalogService.loadCatalog();
-
   const [historial] = await sequelize.query(
     `SELECT pregunta, respuesta FROM chat_historial
       WHERE idusuario = ? AND fecha >= NOW() - INTERVAL ${HISTORY_WINDOW_MINUTES} MINUTE
@@ -155,25 +253,41 @@ async function queryWithExplanation(pregunta, idusuario) {
     { role: 'assistant', content: h.respuesta },
   ]);
 
+  const { system, tools, userContent, retrieval } = await buildModelInput(preguntaSafe, historial);
+
+  // Gates pre-LLM (solo rag): sin candidatos no hay nada que citar — no se
+  // gasta una llamada a Claude ni se persiste (design D6).
+  if (retrieval && retrieval.ids.length === 0) {
+    if (retrieval.degraded) {
+      logGuardrail({ reason: 'SERVICE_UNAVAILABLE' }, { stage: 'pre-call', degraded: true });
+      return {
+        ids: [],
+        explicacion: SERVICE_UNAVAILABLE_FALLBACK,
+        imagenes: [],
+        fuera_de_dominio: false,
+        reason: 'SERVICE_UNAVAILABLE',
+      };
+    }
+    const decision = { reason: aiGuardrails.REASONS.LOW_SIMILARITY };
+    metricsCounters[decision.reason] += 1;
+    logGuardrail(decision, { stage: 'pre-call', similarity_top1: retrieval.similarityTop1 });
+    return buildRejectionResponse(decision.reason);
+  }
+
   let toolInput;
   try {
     const response = await client.messages.create({
       model: process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: [
-        {
-          type: 'text',
-          text: aiGuardrails.buildSystemPrompt(catalogo),
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
+      system,
       messages: [
         ...mensajesPrevios,
-        { role: 'user', content: preguntaSafe },
+        { role: 'user', content: userContent },
       ],
-      tools: [aiGuardrails.buildResponderTool()],
+      tools,
       tool_choice: { type: 'tool', name: 'responder_consulta' },
     });
+    logUsage(response);
 
     toolInput = extractToolResult(response);
     // imagenes_refs no es required en el tool schema — normalizar antes de validar.
@@ -208,7 +322,25 @@ async function queryWithExplanation(pregunta, idusuario) {
   }
 
   const refsShape = aiGuardrails.validateRefs(toolInput.idpoha_refs);
-  const refsDb = await crossCheckIdpoha(refsShape.kept);
+  let refsToCheck = refsShape.kept;
+  if (retrieval) {
+    // En rag el modelo solo vio el subset recuperado: cualquier ref fuera de
+    // el es alucinada aunque exista en la DB.
+    const retrievedSet = new Set(retrieval.ids);
+    const outside = refsToCheck.filter((r) => !retrievedSet.has(r));
+    if (outside.length > 0) {
+      console.log(
+        JSON.stringify({
+          event: 'ai.idpoha.dropped',
+          count: outside.length,
+          dropped: outside,
+          stage: 'retrieved-subset',
+        })
+      );
+      refsToCheck = refsToCheck.filter((r) => retrievedSet.has(r));
+    }
+  }
+  const refsDb = await crossCheckIdpoha(refsToCheck);
   const keptRefs = refsDb.kept;
   if (refsDb.dropped.length > 0) {
     console.log(
@@ -216,21 +348,38 @@ async function queryWithExplanation(pregunta, idusuario) {
     );
   }
 
-  // imagenes_refs from Claude: array of {nombre, nombre_cientifico, imagen}
-  const rawImages = Array.isArray(toolInput.imagenes_refs) ? toolInput.imagenes_refs : [];
-  const imgsDb = await crossCheckImages(rawImages, keptRefs);
-  if (imgsDb.dropped.length > 0) {
-    console.log(JSON.stringify({ event: 'ai.image.dropped', count: imgsDb.dropped.length }));
+  let keptImages;
+  if (retrieval) {
+    keptImages = await buildImagesForRefs(keptRefs);
+  } else {
+    // imagenes_refs from Claude: array of {nombre, nombre_cientifico, imagen}
+    const rawImages = Array.isArray(toolInput.imagenes_refs) ? toolInput.imagenes_refs : [];
+    const imgsDb = await crossCheckImages(rawImages, keptRefs);
+    if (imgsDb.dropped.length > 0) {
+      console.log(JSON.stringify({ event: 'ai.image.dropped', count: imgsDb.dropped.length }));
+    }
+    keptImages = imgsDb.kept;
   }
-  const keptImages = imgsDb.kept;
 
-  const gate = aiGuardrails.shouldPersist({
+  const gateCtx = {
     confianza: toolInput.confianza,
     off_topic: toolInput.off_topic,
     keptRefsCount: keptRefs.length,
-  });
+  };
+  if (retrieval && retrieval.similarityTop1 >= aiGuardrails.SIMILARITY_THRESHOLD) {
+    // similarityTop1 solo aporta cuando el ranking vectorial sustento el
+    // retrieval; si el hibrido (o el modo degraded) rescato candidatos, un
+    // top1 bajo no debe vetar la respuesta — el gate pre-LLM ya decidio que
+    // el retrieval es utilizable.
+    gateCtx.similarityTop1 = retrieval.similarityTop1;
+  }
+  const gate = aiGuardrails.shouldPersist(gateCtx);
   metricsCounters[gate.reason] = (metricsCounters[gate.reason] || 0) + 1;
-  logGuardrail(gate, { confianza: toolInput.confianza, ref_count: keptRefs.length });
+  logGuardrail(gate, {
+    confianza: toolInput.confianza,
+    ref_count: keptRefs.length,
+    ...(retrieval ? { similarity_top1: retrieval.similarityTop1 } : {}),
+  });
 
   if (!gate.persist) {
     return buildRejectionResponse(gate.reason);
