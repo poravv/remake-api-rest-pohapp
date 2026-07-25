@@ -10,6 +10,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { initRedis, isRedisReady, hasRedisConfig } = require('./services/cacheClient');
 const { errorHandler } = require('./middleware/errorHandler');
+const { activityLog } = require('./middleware/activityLog');
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -86,6 +87,7 @@ initRedis();
 
 app.use(express.urlencoded({ limit: '50mb', extended: false }));
 app.use(express.json({ limit: '50mb', extended: true, parameterLimit: 500000 }));
+app.use(activityLog);
 
 // Health check endpoints (deben estar ANTES de las rutas)
 app.get('/', (_req, res) => {

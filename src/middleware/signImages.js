@@ -99,7 +99,6 @@ const signMinioUrls = async (req, res, next) => {
         return newObj;
       };
 
-      console.log(`🔄 Iniciando firma de URLs para: ${req.method} ${req.path}`);
       const startTime = Date.now();
 
       // Timeout global de 10 segundos para todo el proceso de firma
@@ -111,8 +110,12 @@ const signMinioUrls = async (req, res, next) => {
       const signedData = await Promise.race([signPromise, timeoutPromise]);
       
       const duration = Date.now() - startTime;
-      console.log(`✅ Firma completada en ${duration}ms - Encontradas: ${urlsFound}, Firmadas: ${urlsSigned}, Fallidas: ${urlsFailed}`);
-      
+      // Solo se reporta cuando hubo trabajo real o fallos: firmar 0 URLs en
+      // cada respuesta llenaba los logs sin aportar informacion.
+      if (urlsSigned > 0 || urlsFailed > 0) {
+        console.log(`🖼️  ${urlsSigned} imagen(es) firmada(s) en ${duration}ms${urlsFailed ? ` — ${urlsFailed} fallida(s)` : ''}`);
+      }
+
       return originalJson(signedData);
     } catch (error) {
       console.error(`❌ Error crítico en middleware signMinioUrls: ${error.message}`);
