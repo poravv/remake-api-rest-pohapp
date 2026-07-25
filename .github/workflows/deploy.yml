@@ -197,6 +197,17 @@ jobs:
           echo "⏳ Waiting rollout for MinIO deployment..."
           kubectl rollout status deployment/pohapp-minio -n ${{ env.NAMESPACE }} --timeout=600s
 
+      - name: AI setup (schema, vista y embeddings)
+        run: |
+          set -euo pipefail
+          echo "🧠 Running AI setup job (vista + regen embeddings, idempotente)..."
+          kubectl delete job pohapp-ai-setup -n ${{ env.NAMESPACE }} --ignore-not-found=true
+          kubectl apply -f k8s/ai-setup-job.yaml -n ${{ env.NAMESPACE }}
+          if ! kubectl wait --for=condition=complete job/pohapp-ai-setup -n ${{ env.NAMESPACE }} --timeout=600s; then
+            echo "❌ AI setup job failed"; kubectl logs job/pohapp-ai-setup -n ${{ env.NAMESPACE }} --tail=50 || true; exit 1
+          fi
+          kubectl logs job/pohapp-ai-setup -n ${{ env.NAMESPACE }} --tail=20
+
       - name: Get short SHA
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
