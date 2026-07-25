@@ -66,7 +66,12 @@ try {
     // Readiness probe: valida que la DB esté alcanzable. Más estricto
     // que `/` (que sólo confirma que el process vive). La ruta debe
     // coincidir con readinessProbe.httpGet.path del Deployment k8s.
-    routes.get('/api/pohapp/readiness', async (_req, res) => {
+    routes.get('/api/pohapp/readiness', async (req, res) => {
+        // Durante el apagado el pod se declara no listo: k8s deja de enviarle
+        // trafico mientras drena las requests en curso.
+        if (req.app.get('cerrando')) {
+            return res.status(503).json({ ok: false, error: 'shutting down' });
+        }
         try {
             await database.authenticate();
             res.json({ ok: true });

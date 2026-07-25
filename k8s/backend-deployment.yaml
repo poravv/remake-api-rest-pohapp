@@ -73,6 +73,9 @@ spec:
           preStop:
             exec:
               command: ["/bin/sh","-c","sleep 15"]
+      # El preStop consume 15s y el apagado ordenado hasta 10s mas: con los 30s
+      # por defecto quedaba sin margen para drenar requests largas (consultas IA).
+      terminationGracePeriodSeconds: 45
       volumes:
       - name: firebase-sa
         secret:

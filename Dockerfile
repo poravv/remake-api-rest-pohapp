@@ -10,4 +10,7 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["npm","run", "start"]
+# node directo (no npm): npm no reenvia SIGTERM al proceso hijo, lo reporta
+# como fallo y retrasa el apagado en cada rollout. El manejador de senales
+# vive en src/server.js.
+CMD ["node", "src/server.js"]

@@ -8,7 +8,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const { initRedis, isRedisReady, hasRedisConfig } = require('./services/cacheClient');
+const { initRedis, isRedisReady, hasRedisConfig, getRedisClient } = require('./services/cacheClient');
 const { errorHandler } = require('./middleware/errorHandler');
 const { activityLog } = require('./middleware/activityLog');
 
@@ -106,7 +106,12 @@ app.get('/health', (_req, res) => {
     })
 })
 
-app.get('/readiness', (_req, res) => {
+app.get('/readiness', (req, res) => {
+    // Durante el apagado el pod deja de estar listo: evita recibir trafico
+    // nuevo mientras drena las requests en curso.
+    if (req.app.get('cerrando')) {
+        return res.status(503).json({ status: 'shutting down' });
+    }
     // Verificar conexión a la base de datos
     database.authenticate()
         .then(() => {
@@ -137,6 +142,80 @@ app.use(rutas)
 
 app.use(errorHandler);
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
     console.log("App corriendo en el puerto: ", port)
 })
+
+/**
+ * Apagado ordenado. Kubernetes manda SIGTERM en cada rollout: sin manejarlo el
+ * proceso muere de golpe, cortando las requests en vuelo y dejando las
+ * conexiones a MySQL y Redis sin cerrar.
+ *
+ * El timeout es la red de seguridad: si una conexion queda colgada, se sale
+ * igual en lugar de esperar el SIGKILL del cluster.
+ */
+const SHUTDOWN_TIMEOUT_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '10000', 10);
+// server.close() resuelve cuando se cierran los sockets, pero un handler async
+// puede seguir corriendo si el cliente movil corto la conexion. Este margen le
+// da tiempo a terminar antes de cerrar MySQL y Redis bajo sus pies.
+const DRAIN_MS = parseInt(process.env.SHUTDOWN_DRAIN_MS || '2000', 10);
+let cerrando = false;
+
+async function apagadoOrdenado(senal) {
+    if (cerrando) return;
+    cerrando = true;
+    app.set('cerrando', true);
+    console.log(`[SHUTDOWN] ${senal} recibido, cerrando ordenadamente`);
+
+    const forzarSalida = setTimeout(() => {
+        console.error('[SHUTDOWN] timeout alcanzado, salida forzada');
+        process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forzarSalida.unref();
+
+    try {
+        await new Promise((resolve) => {
+            server.close(resolve);
+            // Las conexiones keep-alive ociosas impiden que close() resuelva.
+            if (typeof server.closeIdleConnections === 'function') {
+                server.closeIdleConnections();
+            }
+        });
+        console.log('[SHUTDOWN] servidor HTTP cerrado');
+    } catch (error) {
+        console.error('[SHUTDOWN] error cerrando HTTP:', error.message);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, DRAIN_MS));
+
+    // Los cierres de infraestructura no deben impedir la salida: se registran
+    // y se continua.
+    try {
+        const redis = getRedisClient();
+        // isOpen/isReady son del cliente: el flag propio no se restablece tras
+        // una reconexion y dejaria la conexion sin cerrar.
+        if (redis?.isReady) {
+            await redis.quit();
+            console.log('[SHUTDOWN] Redis cerrado');
+        } else if (redis?.isOpen) {
+            await redis.disconnect();
+            console.log('[SHUTDOWN] Redis desconectado');
+        }
+    } catch (error) {
+        console.error('[SHUTDOWN] error cerrando Redis:', error.message);
+    }
+
+    try {
+        await database.close();
+        console.log('[SHUTDOWN] base de datos cerrada');
+    } catch (error) {
+        console.error('[SHUTDOWN] error cerrando base de datos:', error.message);
+    }
+
+    clearTimeout(forzarSalida);
+    console.log('[SHUTDOWN] proceso finalizado');
+    process.exit(0);
+}
+
+process.on('SIGTERM', () => apagadoOrdenado('SIGTERM'));
+process.on('SIGINT', () => apagadoOrdenado('SIGINT'));
