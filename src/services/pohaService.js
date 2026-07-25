@@ -9,6 +9,7 @@ const { Op } = require('sequelize');
 const sequelize = require('../database');
 const { invalidateByPrefix } = require('../middleware/cache');
 const catalogRegen = require('./catalogRegenService');
+const embeddingRegen = require('./embeddingRegenService');
 
 // DEPRECATED (claude-semantic-search): const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -278,6 +279,13 @@ async function createPoha(data, authUser) {
     // Invalidate catalog so next query picks up the new poha
     await catalogRegen.invalidateCatalogForPoha(nuevoPoha.idpoha);
 
+    // Best-effort: index the new poha for RAG retrieval. Never fails the CRUD.
+    try {
+        await embeddingRegen.regenerateEmbeddingForPoha(nuevoPoha.idpoha);
+    } catch (err) {
+        console.error(`[createPoha] embedding regen failed for ${nuevoPoha.idpoha}:`, err.message);
+    }
+
     return {
         ...(pohaWithRelations ? pohaWithRelations.toJSON() : nuevoPoha.toJSON()),
         embeddingGuardado: true,
@@ -310,6 +318,11 @@ async function updatePoha(idpoha, data) {
     } catch (err) {
         console.error(`[updatePoha] catalog invalidation failed for ${idpoha}:`, err.message);
     }
+    try {
+        await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+    } catch (err) {
+        console.error(`[updatePoha] embedding regen failed for ${idpoha}:`, err.message);
+    }
 
     const updated = await getPohaById(idpoha);
     return updated ? updated.toJSON() : null;
@@ -325,6 +338,11 @@ async function deletePoha(idpoha) {
         await catalogRegen.invalidateCatalogForPoha(idpoha);
     } catch (err) {
         console.error(`[deletePoha] catalog invalidation failed for ${idpoha}:`, err.message);
+    }
+    try {
+        await embeddingRegen.deleteEmbeddingForPoha(idpoha);
+    } catch (err) {
+        console.error(`[deletePoha] embedding delete failed for ${idpoha}:`, err.message);
     }
     return result;
 }
@@ -390,6 +408,11 @@ async function approvePoha(idpoha) {
     } catch (err) {
         console.error(`[approvePoha] catalog invalidation failed for ${idpoha}:`, err.message);
         embeddingStatus = 'error';
+    }
+    try {
+        await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+    } catch (err) {
+        console.error(`[approvePoha] embedding regen failed for ${idpoha}:`, err.message);
     }
 
     return {

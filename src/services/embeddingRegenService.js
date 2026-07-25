@@ -1,5 +1,3 @@
-// DEPRECATED (claude-semantic-search): usar catalogRegenService.js. Mantenido para rollback.
-
 /**
  * Reusable embedding regeneration pipeline.
  *
@@ -15,6 +13,7 @@
 const { OpenAI } = require('openai');
 const sequelize = require('../database');
 const embeddingCache = require('./embeddingCache');
+const retrievalService = require('./retrievalService');
 const { invalidateByPrefix } = require('../middleware/cache');
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
@@ -95,6 +94,7 @@ async function regenerateEmbeddingForPoha(idpoha) {
     );
 
     await embeddingCache.set(hash, vector);
+    retrievalService.invalidateVectorCache();
     invalidateByPrefix('medicinales');
     return { status: 'regenerated', idpoha };
   } catch (err) {
@@ -148,6 +148,7 @@ async function deleteEmbeddingForPoha(idpoha) {
     `DELETE FROM medicina_embeddings WHERE idpoha = :idpoha`,
     { replacements: { idpoha } },
   );
+  retrievalService.invalidateVectorCache();
   invalidateByPrefix('medicinales');
 }
 
