@@ -2,9 +2,7 @@ const {
   sanitizeInput,
   parseSchema,
   validateRefs,
-  validateImages,
   shouldPersist,
-  buildResponseSchema,
   buildSystemPrompt,
   CONFIDENCE_THRESHOLD,
   SIMILARITY_THRESHOLD,
@@ -49,26 +47,6 @@ describe('aiGuardrails.validateRefs', () => {
   it('handles non-array input safely', () => {
     expect(validateRefs(null)).toEqual({ kept: [], dropped: [] });
     expect(validateRefs(undefined)).toEqual({ kept: [], dropped: [] });
-  });
-});
-
-describe('aiGuardrails.validateImages', () => {
-  it('keeps only http(s) URLs', () => {
-    const input = [
-      { nombre: 'a', url: 'https://cdn/x.jpg' },
-      { nombre: 'b', url: 'ftp://evil/y.jpg' },
-      { nombre: 'c', url: 'not-a-url' },
-    ];
-    const { valid, invalid } = validateImages(input);
-    expect(valid).toHaveLength(1);
-    expect(valid[0].url).toBe('https://cdn/x.jpg');
-    expect(invalid).toHaveLength(2);
-  });
-
-  it('handles missing url field', () => {
-    const { valid, invalid } = validateImages([{ nombre: 'a' }, null]);
-    expect(valid).toEqual([]);
-    expect(invalid).toHaveLength(2);
   });
 });
 
@@ -141,19 +119,10 @@ describe('aiGuardrails.shouldPersist', () => {
   });
 });
 
-describe('aiGuardrails.buildSystemPrompt / buildResponseSchema', () => {
+describe('aiGuardrails.buildSystemPrompt', () => {
   it('system prompt mentions poha nana and JSON schema', () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toMatch(/poha nana/i);
     expect(prompt).toMatch(/off_topic/);
-  });
-
-  it('response schema has required fields and strict=true', () => {
-    const s = buildResponseSchema();
-    expect(s.strict).toBe(true);
-    expect(s.schema.required).toEqual(
-      expect.arrayContaining(['respuesta', 'idpoha_refs', 'imagenes_refs', 'confianza', 'off_topic'])
-    );
-    expect(s.schema.additionalProperties).toBe(false);
   });
 });

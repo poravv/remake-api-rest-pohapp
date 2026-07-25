@@ -4,9 +4,9 @@
  * infrastructure (Sequelize, http.HEAD) is injected per call so the module
  * stays testable with plain fakes.
  *
- * Updated for Claude tool-use pipeline: buildSystemPrompt() now accepts the
- * catalog string as an argument (injected at call time for prompt caching),
- * and buildResponderTool() replaces buildResponseSchema() (OpenAI-specific).
+ * Updated for Claude tool-use pipeline: buildSystemPrompt() accepts the
+ * catalog string as an argument (injected at call time for prompt caching);
+ * buildRagSystemPrompt()/buildResponderToolRag() cover AI_CONTEXT_MODE=rag.
  */
 
 const { sanitizePregunta, hasInjectionMarker } = require('../middleware/validation/nlp.validation');
@@ -15,7 +15,6 @@ const CONFIDENCE_THRESHOLD = parseFloat(process.env.AI_CONFIANZA_MIN_CLAUDE || p
 const SIMILARITY_THRESHOLD = parseFloat(process.env.AI_SIMILARITY_MIN || '0.35');
 const MAX_IDPOHA_REFS = parseInt(process.env.AI_MAX_IDPOHA_REFS || '10', 10);
 const MAX_IMAGE_REFS = parseInt(process.env.AI_MAX_IMAGE_REFS || '10', 10);
-const IMAGE_HEAD_TIMEOUT_MS = parseInt(process.env.AI_IMAGE_HEAD_TIMEOUT_MS || '2000', 10);
 
 /** Human-readable reason codes for persistence gating and metrics labels. */
 const REASONS = Object.freeze({
@@ -112,35 +111,6 @@ function validateRefs(refs) {
     kept.push(ref);
   }
   return { kept: kept.slice(0, MAX_IDPOHA_REFS), dropped };
-}
-
-/**
- * URL shape validation only. Canonical-match against `planta.img` and HEAD
- * fallback live in the stateful adapter (not in this pure module).
- * @param {Array<{url?:string, nombre?:string}>} urls
- * @returns {{valid:Array, invalid:Array}}
- */
-function validateImages(urls) {
-  if (!Array.isArray(urls)) return { valid: [], invalid: [] };
-  const valid = [];
-  const invalid = [];
-  for (const item of urls) {
-    if (!item || typeof item !== 'object' || typeof item.url !== 'string') {
-      invalid.push(item);
-      continue;
-    }
-    try {
-      const parsed = new URL(item.url);
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        invalid.push(item);
-        continue;
-      }
-      valid.push(item);
-    } catch (_err) {
-      invalid.push(item);
-    }
-  }
-  return { valid: valid.slice(0, MAX_IMAGE_REFS), invalid };
 }
 
 /**
@@ -383,56 +353,17 @@ function buildResponderToolRag() {
   };
 }
 
-/** @deprecated Use buildResponderTool() for the Claude pipeline. Kept for backward compat with nlpService.js. */
-function buildResponseSchema() {
-  return {
-    name: 'poha_nana_respuesta',
-    strict: true,
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['respuesta', 'idpoha_refs', 'imagenes_refs', 'confianza', 'off_topic'],
-      properties: {
-        respuesta: { type: 'string', minLength: 1, maxLength: 2000 },
-        idpoha_refs: {
-          type: 'array',
-          items: { type: 'integer', minimum: 1 },
-          maxItems: MAX_IDPOHA_REFS,
-        },
-        imagenes_refs: {
-          type: 'array',
-          maxItems: MAX_IMAGE_REFS,
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['nombre', 'nombre_cientifico', 'url'],
-            properties: {
-              nombre: { type: 'string', maxLength: 200 },
-              nombre_cientifico: { type: ['string', 'null'], maxLength: 200 },
-              url: { type: 'string', maxLength: 500 },
-            },
-          },
-        },
-        confianza: { type: 'number', minimum: 0, maximum: 1 },
-        off_topic: { type: 'boolean' },
-      },
-    },
-  };
-}
-
 module.exports = {
   // policy
   sanitizeInput,
   stripMarkdown,
   parseSchema,
   validateRefs,
-  validateImages,
   shouldPersist,
   buildSystemPrompt,
   buildRagSystemPrompt,
   buildResponderTool,
   buildResponderToolRag,
-  buildResponseSchema, // deprecated — kept for nlpService.js backward compat
   // re-exports from validator for service-layer convenience
   hasInjectionMarker,
   // constants
@@ -440,6 +371,5 @@ module.exports = {
   SIMILARITY_THRESHOLD,
   MAX_IDPOHA_REFS,
   MAX_IMAGE_REFS,
-  IMAGE_HEAD_TIMEOUT_MS,
   REASONS,
 };

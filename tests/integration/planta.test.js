@@ -72,13 +72,13 @@ jest.mock('../../src/services/usuarioService', () => ({
   deleteUsuario: jest.fn().mockResolvedValue(0),
 }));
 
-jest.mock('../../src/services/nlpService', () => ({
+jest.mock('../../src/services/retrievalService', () => ({
+  retrieve: jest.fn().mockResolvedValue({ ids: [], contexto: null, similarityTop1: 0, degraded: false }),
+  queryPreview: jest.fn().mockResolvedValue({ pregunta: '', resultados: [], total: 0 }),
+  invalidateVectorCache: jest.fn(),
   normalize: jest.fn(t => t),
   cosineSimilarity: jest.fn().mockReturnValue(0),
   generateEmbedding: jest.fn().mockResolvedValue([]),
-  queryWithExplanation: jest.fn().mockResolvedValue({ ids: [], explicacion: 'test', imagenes: [] }),
-  queryPreview: jest.fn().mockResolvedValue({ pregunta: '', resultados: [], total: 0 }),
-  getChatHistory: jest.fn().mockResolvedValue({ historial: [] }),
 }));
 
 jest.mock('../../src/database', () => ({

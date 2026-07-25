@@ -22,14 +22,21 @@ jest.mock('../../src/middleware/signImages', () => ({
 }));
 
 const mockNlpService = {
+  queryWithExplanation: jest.fn(),
+  getChatHistory: jest.fn(),
+  getMetrics: jest.fn().mockReturnValue({}),
+};
+jest.mock('../../src/services/claudeNlpService', () => mockNlpService);
+
+const mockRetrievalService = {
+  retrieve: jest.fn(),
+  queryPreview: jest.fn(),
+  invalidateVectorCache: jest.fn(),
   normalize: jest.fn(t => t),
   cosineSimilarity: jest.fn().mockReturnValue(0),
   generateEmbedding: jest.fn().mockResolvedValue([]),
-  queryWithExplanation: jest.fn(),
-  queryPreview: jest.fn(),
-  getChatHistory: jest.fn(),
 };
-jest.mock('../../src/services/claudeNlpService', () => mockNlpService);
+jest.mock('../../src/services/retrievalService', () => mockRetrievalService);
 
 jest.mock('../../src/services/pohaService', () => ({
   countPoha: jest.fn().mockResolvedValue(0),
@@ -165,7 +172,7 @@ describe('NLP Routes', () => {
 
   describe('POST /api/pohapp/query-nlp/preview', () => {
     it('should return NLP preview (200)', async () => {
-      mockNlpService.queryPreview.mockResolvedValue({
+      mockRetrievalService.queryPreview.mockResolvedValue({
         pregunta: 'dolor cabeza',
         resultados: [],
         total: 0,

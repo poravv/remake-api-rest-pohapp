@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const nlpService = require('../services/nlpService');
+const retrievalService = require('../services/retrievalService');
 const { validateNlpPreview } = require('../middleware/validation/nlp.validation');
 
 router.post('/', validateNlpPreview, async (req, res) => {
@@ -14,7 +14,7 @@ router.post('/', validateNlpPreview, async (req, res) => {
   }
 
   try {
-    const result = await nlpService.queryPreview(pregunta);
+    const result = await retrievalService.queryPreview(pregunta);
     res.json(result);
   } catch (err) {
     console.error('Error en /query-nlp/preview:', err);

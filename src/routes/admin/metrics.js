@@ -26,7 +26,7 @@ router.get('/dashboard', auditMiddleware('metrics.dashboard'), async (_req, res)
 /**
  * GET /api/pohapp/admin/metrics/ai
  * AI assistant usage metrics derived from chat_historial. Off-domain
- * queries are NOT persisted there (per nlpService guardrails), so this
+ * queries are NOT persisted there (per aiGuardrails persistence gate), so this
  * view only reports retained traffic. Cached 60s via the Cache-Control
  * header downstream.
  *
