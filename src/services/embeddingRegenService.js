@@ -15,6 +15,7 @@ const sequelize = require('../database');
 const embeddingCache = require('./embeddingCache');
 const retrievalService = require('./retrievalService');
 const { invalidateByPrefix } = require('../middleware/cache');
+const { buildEnrichment } = require('./dolenciaSinonimos');
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 
@@ -29,7 +30,8 @@ function getOpenAI() {
 function buildResumen(row) {
   const dolencias = row.dolencias || '';
   const texto = row.texto_entrenamiento || '';
-  return `Dolencias que trata: ${dolencias}. ${texto}`.trim();
+  const base = `Dolencias que trata: ${dolencias}. ${texto}`.trim();
+  return `${base}${buildEnrichment(dolencias)}`.trim();
 }
 
 async function fetchTrainingRow(idpoha) {
@@ -153,6 +155,7 @@ async function deleteEmbeddingForPoha(idpoha) {
 }
 
 module.exports = {
+  buildResumen,
   regenerateEmbeddingForPoha,
   regenerateAllEmbeddings,
   deleteEmbeddingForPoha,

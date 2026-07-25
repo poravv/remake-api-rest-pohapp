@@ -15,10 +15,11 @@ spec:
           command:
             - sh
             - -c
-            # Esquema/vista primero; luego regen de embeddings (idempotente por
-            # embedding_hash — solo re-embebe filas cuyo texto cambió).
+            # Esquema/vista primero; luego migraciones idempotentes; finalmente
+            # regen de embeddings (idempotente por embedding_hash).
             - >-
               node src/scripts/setup_ai.js &&
+              node src/scripts/migrate_ai_search.js &&
               node -e "require('./src/services/embeddingRegenService').regenerateAllEmbeddings().then((r) => { console.log('regen:', JSON.stringify(r)); process.exit(r.errors > 0 ? 1 : 0); }).catch((e) => { console.error(e.message); process.exit(1); })"
           envFrom:
             - configMapRef:

@@ -52,9 +52,10 @@ jest.mock('../../src/database', () => ({
 const request = require('supertest');
 const express = require('express');
 const embeddingCache = require('../../src/services/embeddingCache');
+const { buildResumen } = require('../../src/services/embeddingRegenService');
 
 function resumenOf(row) {
-  return `Dolencias que trata: ${row.dolencias || ''}. ${row.texto_entrenamiento || ''}`.trim();
+  return buildResumen(row);
 }
 
 // Fake vw_medicina_entrenamiento LEFT JOIN medicina_embeddings result set.

@@ -30,16 +30,11 @@ require('dotenv').config();
 const { OpenAI } = require('openai');
 const sequelize = require('../database');
 const embeddingCache = require('../services/embeddingCache');
+const { buildResumen } = require('../services/embeddingRegenService');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
-
-function buildResumen(row) {
-  const dolencias = row.dolencias || '';
-  const texto = row.texto_entrenamiento || '';
-  return `Dolencias que trata: ${dolencias}. ${texto}`.trim();
-}
 
 async function main() {
   const [resultados] = await sequelize.query(`
