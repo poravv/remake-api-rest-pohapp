@@ -23,6 +23,11 @@ data:
   CLAUDE_MODEL: "claude-haiku-4-5-20251001"
   CLAUDE_CATALOG_CACHE_KEY: "claude_catalog:v1"
   CLAUDE_CATALOG_TTL_SECONDS: "3600"
+  # Moderación obligatoria antes de activar contenido del catálogo.
+  # Los registros PE no se envían a Claude.
+  AI_MODERATION_ENABLED: "true"
+  AI_MODERATION_MODEL: "claude-haiku-4-5-20251001"
+  AI_MODERATION_MIN_CONFIDENCE: "0.75"
 
   # RAG — modo de contexto del asistente: catalog (catalogo completo) | rag
   # (top-k recuperado por embeddings). Rollback = volver a "catalog" +

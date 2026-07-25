@@ -35,6 +35,23 @@ jest.mock('../../src/model/usuario', () => ({
 
 jest.mock('../../src/database', () => ({
   query: jest.fn().mockResolvedValue([[{ texto_entrenamiento: 'test training text' }]]),
+  transaction: jest.fn().mockImplementation(async (cb) => cb({ id: 'tx-fake' })),
+}));
+
+const mockModerate = jest.fn().mockResolvedValue({ status: 'allowed' });
+const mockModerateOrDegrade = jest.fn().mockResolvedValue({ degraded: false, result: { status: 'allowed' } });
+jest.mock('../../src/services/contentModerationService', () => ({
+  moderateActivation: mockModerate,
+  moderateActivationOrDegrade: mockModerateOrDegrade,
+}));
+
+jest.mock('../../src/services/catalogRegenService', () => ({
+  invalidateCatalogForPoha: jest.fn().mockResolvedValue({ invalidated: true }),
+}));
+
+jest.mock('../../src/services/embeddingRegenService', () => ({
+  regenerateEmbeddingForPoha: jest.fn().mockResolvedValue({ status: 'ok' }),
+  deleteEmbeddingForPoha: jest.fn().mockResolvedValue({ status: 'ok' }),
 }));
 
 jest.mock('../../src/middleware/cache', () => ({
@@ -119,39 +136,67 @@ describe('pohaService', () => {
 
   describe('createPoha', () => {
     it('should create poha with PE estado for non-admin user', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
       mockCreate.mockResolvedValue({
         idpoha: 10,
+        estado: 'PE',
+        toJSON: () => ({ idpoha: 10, preparado: 'test', estado: 'PE' }),
+      });
+      mockFindByPk.mockResolvedValue({
         toJSON: () => ({ idpoha: 10, preparado: 'test', estado: 'PE' }),
       });
 
-      const result = await pohaService.createPoha({
-        preparado: 'test',
-        recomendacion: 'test rec',
-        idusuario: 'user1',
-      });
+      const result = await pohaService.createPoha(
+        { preparado: 'test', recomendacion: 'test rec', idusuario: 'user1' },
+        { isAdmin: 0 },
+      );
 
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ estado: 'PE' })
+        expect.objectContaining({ estado: 'PE' }),
+        expect.any(Object),
       );
       expect(result).toBeDefined();
     });
 
     it('should create poha with AC estado for admin user', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
       mockCreate.mockResolvedValue({
         idpoha: 11,
+        estado: 'AC',
+        toJSON: () => ({ idpoha: 11, preparado: 'admin test', estado: 'AC' }),
+      });
+      mockFindByPk.mockResolvedValue({
         toJSON: () => ({ idpoha: 11, preparado: 'admin test', estado: 'AC' }),
       });
 
-      await pohaService.createPoha({
-        preparado: 'admin test',
-        recomendacion: 'rec',
-        idusuario: 'admin1',
-      });
+      await pohaService.createPoha(
+        { preparado: 'admin test', recomendacion: 'rec', idusuario: 'admin1' },
+        { isAdmin: 1 },
+      );
 
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ estado: 'AC' })
+        expect.objectContaining({ estado: 'AC' }),
+        expect.any(Object),
+      );
+    });
+
+    it('should create poha with PE estado when moderation is unavailable', async () => {
+      mockModerateOrDegrade.mockResolvedValueOnce({ degraded: true });
+      mockCreate.mockResolvedValue({
+        idpoha: 12,
+        estado: 'PE',
+        toJSON: () => ({ idpoha: 12, preparado: 'admin test', estado: 'PE' }),
+      });
+      mockFindByPk.mockResolvedValue({
+        toJSON: () => ({ idpoha: 12, preparado: 'admin test', estado: 'PE' }),
+      });
+
+      await pohaService.createPoha(
+        { preparado: 'admin test', recomendacion: 'rec', idusuario: 'admin1' },
+        { isAdmin: 1 },
+      );
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ estado: 'PE' }),
+        expect.any(Object),
       );
     });
   });
@@ -159,15 +204,18 @@ describe('pohaService', () => {
   describe('updatePoha', () => {
     it('should update poha and invalidate cache', async () => {
       mockUpdate.mockResolvedValue([1]);
+      mockFindByPk.mockResolvedValue({
+        toJSON: () => ({ idpoha: 1, preparado: 'updated', estado: 'PE' }),
+      });
       const { invalidateByPrefix } = require('../../src/middleware/cache');
 
       const result = await pohaService.updatePoha(1, { preparado: 'updated' });
       expect(mockUpdate).toHaveBeenCalledWith(
-        { preparado: 'updated' },
-        { where: { idpoha: 1 } }
+        expect.objectContaining({ preparado: 'updated' }),
+        expect.objectContaining({ where: { idpoha: 1 } }),
       );
       expect(invalidateByPrefix).toHaveBeenCalledWith('poha');
-      expect(result).toEqual([1]);
+      expect(result).toEqual({ idpoha: 1, preparado: 'updated', estado: 'PE' });
     });
   });
 
@@ -186,61 +234,62 @@ describe('pohaService', () => {
   });
 
   describe('getPendingPoha', () => {
-    it('should throw 403 for non-admin user', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-
-      await expect(pohaService.getPendingPoha('user1'))
-        .rejects.toThrow('Acceso denegado');
-    });
-
-    it('should return pending poha for admin user', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should return pending poha ordered by id desc', async () => {
       const pending = [{ idpoha: 1, estado: 'PE' }];
       mockFindAll.mockResolvedValue(pending);
 
-      const result = await pohaService.getPendingPoha('admin1');
+      const result = await pohaService.getPendingPoha();
       expect(result).toEqual(pending);
+      expect(mockFindAll).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { estado: 'PE' } })
+      );
     });
   });
 
   describe('approvePoha', () => {
-    it('should throw 403 for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-
-      await expect(pohaService.approvePoha(1, 'user1'))
-        .rejects.toThrow('Acceso denegado');
-    });
+    const pendingPoha = {
+      toJSON: () => ({ idpoha: 1, preparado: 'te', recomendacion: 'tibio', estado: 'PE' }),
+    };
 
     it('should throw 404 if poha not found or already approved', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
-      mockUpdate.mockResolvedValue([0]);
+      mockFindByPk.mockResolvedValue(null);
 
-      await expect(pohaService.approvePoha(999, 'admin1'))
+      await expect(pohaService.approvePoha(999))
         .rejects.toThrow('no encontrado');
     });
 
-    it('should approve poha for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should approve poha when moderation allows the content', async () => {
+      mockFindByPk.mockResolvedValue(pendingPoha);
       mockUpdate.mockResolvedValue([1]);
 
-      const result = await pohaService.approvePoha(1, 'admin1');
+      const result = await pohaService.approvePoha(1);
       expect(result.message).toContain('aprobado');
+      expect(mockModerate).toHaveBeenCalledWith(
+        'poha',
+        expect.objectContaining({ estado: 'AC' }),
+        { idpoha: 1 },
+      );
+    });
+
+    it('should throw 503 when moderation is unavailable on approve', async () => {
+      mockFindByPk.mockResolvedValue(pendingPoha);
+      const unavailableError = Object.assign(new Error('no disponible'), {
+        statusCode: 503,
+        code: 'MODERATION_UNAVAILABLE',
+      });
+      mockModerate.mockRejectedValueOnce(unavailableError);
+
+      await expect(pohaService.approvePoha(1))
+        .rejects.toMatchObject({ statusCode: 503, code: 'MODERATION_UNAVAILABLE' });
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 
   describe('rejectPoha', () => {
-    it('should throw 403 for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-
-      await expect(pohaService.rejectPoha(1, 'user1'))
-        .rejects.toThrow('Acceso denegado');
-    });
-
-    it('should reject poha for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should reject pending poha', async () => {
       mockUpdate.mockResolvedValue([1]);
 
-      const result = await pohaService.rejectPoha(1, 'admin1');
+      const result = await pohaService.rejectPoha(1);
       expect(result.message).toContain('rechazado');
     });
   });

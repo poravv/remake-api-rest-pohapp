@@ -207,7 +207,7 @@ ruta.put('/put/:idplanta', verifyToken, validateUpdatePlanta, async (req, res) =
         return res.status(400).json({ error: 'body requerido' });
     }
     try {
-        const response = await plantaService.updatePlanta(req.params.idplanta, req.body);
+        const response = await plantaService.updatePlanta(req.params.idplanta, req.body, req.user);
         res.json(response);
     } catch (error) {
         console.error(error);

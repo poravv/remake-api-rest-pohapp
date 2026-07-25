@@ -262,13 +262,19 @@ ruta.post('/post/', verifyToken, validateCreatePoha, async (req, res) => {
         res.json(response);
     } catch (error) {
         console.error('Error al guardar poha con embedding:', error);
-        res.status(error.statusCode || 500).json({ error: 'Error interno al guardar poha y generar embedding' });
+        const status = error.statusCode || 500;
+        res.status(status).json({
+            error: status === 422 || status === 503
+                ? error.message
+                : 'Error interno al guardar poha y generar embedding',
+            ...(error.code ? { code: error.code } : {}),
+        });
     }
 });
 
 ruta.put('/put/:idpoha', verifyToken, validateUpdatePoha, async (req, res) => {
     try {
-        const response = await pohaService.updatePoha(req.params.idpoha, req.body);
+        const response = await pohaService.updatePoha(req.params.idpoha, req.body, req.user);
         res.json(response);
     } catch (error) {
         console.error(error);

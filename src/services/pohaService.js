@@ -10,6 +10,7 @@ const sequelize = require('../database');
 const { invalidateByPrefix } = require('../middleware/cache');
 const catalogRegen = require('./catalogRegenService');
 const embeddingRegen = require('./embeddingRegenService');
+const contentModeration = require('./contentModerationService');
 
 // DEPRECATED (claude-semantic-search): const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -48,31 +49,41 @@ function normalizeIdArray(value) {
     return Array.from(new Set(ids));
 }
 
-async function assertPlantasExist(ids, transaction) {
+async function assertPlantasExist(ids, transaction, activeOnly = false) {
     if (!ids.length) return;
     const found = await planta.findAll({
         attributes: ['idplanta'],
-        where: { idplanta: { [Op.in]: ids } },
+        where: {
+            idplanta: { [Op.in]: ids },
+            ...(activeOnly ? { estado: 'AC' } : {}),
+        },
         transaction,
         raw: true,
     });
     if (found.length !== ids.length) {
-        const err = new Error('Una o mas plantas referenciadas no existen');
+        const err = new Error(activeOnly
+            ? 'Una o mas plantas referenciadas no estan activas'
+            : 'Una o mas plantas referenciadas no existen');
         err.statusCode = 400;
         throw err;
     }
 }
 
-async function assertDolenciasExist(ids, transaction) {
+async function assertDolenciasExist(ids, transaction, activeOnly = false) {
     if (!ids.length) return;
     const found = await dolencias.findAll({
         attributes: ['iddolencias'],
-        where: { iddolencias: { [Op.in]: ids } },
+        where: {
+            iddolencias: { [Op.in]: ids },
+            ...(activeOnly ? { estado: 'AC' } : {}),
+        },
         transaction,
         raw: true,
     });
     if (found.length !== ids.length) {
-        const err = new Error('Una o mas dolencias referenciadas no existen');
+        const err = new Error(activeOnly
+            ? 'Una o mas dolencias referenciadas no estan activas'
+            : 'Una o mas dolencias referenciadas no existen');
         err.statusCode = 400;
         throw err;
     }
@@ -221,9 +232,18 @@ async function createPoha(data, authUser) {
     const dolenciasIds = normalizeIdArray(data.dolencias);
     const scalarData = { ...pickScalarFields(data), estado };
 
+    // PE contributions are intentionally not sent to the LLM. Admin-created
+    // AC content must pass the same gate as an approval before it is stored.
+    // Fail-safe: sin moderación disponible el poha se crea como PE.
+    const moderation = await contentModeration.moderateActivationOrDegrade('poha', scalarData);
+    if (moderation.degraded) {
+        estado = 'PE';
+        scalarData.estado = 'PE';
+    }
+
     const nuevoPoha = await sequelize.transaction(async (tx) => {
-        if (plantasIds !== null) await assertPlantasExist(plantasIds, tx);
-        if (dolenciasIds !== null) await assertDolenciasExist(dolenciasIds, tx);
+        if (plantasIds !== null) await assertPlantasExist(plantasIds, tx, estado === 'AC');
+        if (dolenciasIds !== null) await assertDolenciasExist(dolenciasIds, tx, estado === 'AC');
 
         const created = await poha.create(scalarData, { transaction: tx });
         await syncPohaPlantas(created.idpoha, scalarData.idusuario, plantasIds, tx);
@@ -255,9 +275,9 @@ async function createPoha(data, authUser) {
         ) AS texto_entrenamiento
         FROM poha p
         LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha
-        LEFT JOIN dolencias d ON d.iddolencias = dp.iddolencias
+        LEFT JOIN dolencias d ON d.iddolencias = dp.iddolencias AND d.estado = 'AC'
         LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha
-        LEFT JOIN planta pl ON pl.idplanta = pp.idplanta
+        LEFT JOIN planta pl ON pl.idplanta = pp.idplanta AND pl.estado = 'AC'
         WHERE p.idpoha = ?
         GROUP BY p.idpoha
     `, { replacements: [nuevoPoha.idpoha] });
@@ -267,6 +287,14 @@ async function createPoha(data, authUser) {
 
     invalidateByPrefix('poha');
     invalidateByPrefix('medicinales');
+
+    if (nuevoPoha.estado !== 'AC') {
+        return {
+            poha: pohaWithRelations ? pohaWithRelations.toJSON() : nuevoPoha.toJSON(),
+            embeddingGuardado: false,
+            embeddingStatus: 'skipped_not_active',
+        };
+    }
 
     if (!textoEntrenamiento) {
         return {
@@ -292,14 +320,34 @@ async function createPoha(data, authUser) {
     };
 }
 
-async function updatePoha(idpoha, data) {
+async function updatePoha(idpoha, data, authUser) {
     const plantasIds = normalizeIdArray(data.plantas);
     const dolenciasIds = normalizeIdArray(data.dolencias);
-    const scalarData = pickScalarFields(data);
+    const current = await poha.findByPk(idpoha, { include: FULL_INCLUDES });
+    const currentPlain = current && (typeof current.toJSON === 'function' ? current.toJSON() : current);
+    const isAdmin = authUser && authUser.isAdmin === 1;
+    let requestedState = isAdmin && ['AC', 'PE', 'IN'].includes(data.estado)
+        ? data.estado
+        : currentPlain?.estado;
+    const scalarInput = { ...data };
+    if (requestedState) scalarInput.estado = requestedState;
+    else delete scalarInput.estado;
+    const scalarData = pickScalarFields(scalarInput);
+
+    // Fail-safe: sin moderación disponible el contenido queda PE en vez de 503.
+    const moderation = await contentModeration.moderateActivationOrDegrade('poha', {
+        ...currentPlain,
+        ...scalarData,
+        estado: requestedState || currentPlain?.estado,
+    }, { idpoha });
+    if (moderation.degraded) {
+        requestedState = 'PE';
+        scalarData.estado = 'PE';
+    }
 
     await sequelize.transaction(async (tx) => {
-        if (plantasIds !== null) await assertPlantasExist(plantasIds, tx);
-        if (dolenciasIds !== null) await assertDolenciasExist(dolenciasIds, tx);
+        if (plantasIds !== null) await assertPlantasExist(plantasIds, tx, requestedState === 'AC');
+        if (dolenciasIds !== null) await assertDolenciasExist(dolenciasIds, tx, requestedState === 'AC');
 
         if (Object.keys(scalarData).length > 0) {
             await poha.update(scalarData, { where: { idpoha }, transaction: tx });
@@ -313,15 +361,23 @@ async function updatePoha(idpoha, data) {
 
     // Content may have changed — invalidate catalog so the next Claude query
     // picks up the updated text. Best-effort: log but do not fail the update.
-    try {
-        await catalogRegen.invalidateCatalogForPoha(idpoha);
-    } catch (err) {
-        console.error(`[updatePoha] catalog invalidation failed for ${idpoha}:`, err.message);
-    }
-    try {
-        await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
-    } catch (err) {
-        console.error(`[updatePoha] embedding regen failed for ${idpoha}:`, err.message);
+    if (requestedState === 'AC') {
+        try {
+            await catalogRegen.invalidateCatalogForPoha(idpoha);
+        } catch (err) {
+            console.error(`[updatePoha] catalog invalidation failed for ${idpoha}:`, err.message);
+        }
+        try {
+            await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
+        } catch (err) {
+            console.error(`[updatePoha] embedding regen failed for ${idpoha}:`, err.message);
+        }
+    } else if (currentPlain?.estado === 'AC') {
+        try {
+            await embeddingRegen.deleteEmbeddingForPoha(idpoha);
+        } catch (err) {
+            console.error(`[updatePoha] embedding delete failed for ${idpoha}:`, err.message);
+        }
     }
 
     const updated = await getPohaById(idpoha);
@@ -385,6 +441,22 @@ async function listByUser(uid, filters = {}) {
 }
 
 async function approvePoha(idpoha) {
+    const current = await poha.findByPk(idpoha, { include: FULL_INCLUDES });
+    if (!current) {
+        const err = new Error('Remedio no encontrado o ya aprobado');
+        err.statusCode = 404;
+        throw err;
+    }
+    const currentPlain = typeof current.toJSON === 'function' ? current.toJSON() : current;
+    if (currentPlain.estado !== 'PE') {
+        const err = new Error('Remedio no encontrado o ya aprobado');
+        err.statusCode = 404;
+        throw err;
+    }
+    await contentModeration.moderateActivation('poha', {
+        ...currentPlain,
+        estado: 'AC',
+    }, { idpoha });
     const result = await poha.update(
         { estado: 'AC' },
         { where: { idpoha, estado: 'PE' } },

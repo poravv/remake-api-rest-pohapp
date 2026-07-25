@@ -85,15 +85,17 @@ async function main() {
             SELECT DISTINCT pl.idplanta, pl.nombre, pl.nombre_cientifico, pl.familia, pl.img
             FROM poha_planta pp2
             JOIN planta pl ON pl.idplanta = pp2.idplanta
-            WHERE pp2.idpoha = p.idpoha AND pl.img IS NOT NULL AND pl.img <> ''
+            WHERE pp2.idpoha = p.idpoha
+              AND pl.estado = 'AC'
+              AND pl.img IS NOT NULL AND pl.img <> ''
           ) AS subpl
         ) AS plantas_detalle_json
 
     FROM poha p
     LEFT JOIN dolencias_poha dp ON p.idpoha = dp.idpoha AND p.idusuario = dp.idusuario
-    LEFT JOIN dolencias d ON d.iddolencias = dp.iddolencias
+    LEFT JOIN dolencias d ON d.iddolencias = dp.iddolencias AND d.estado = 'AC'
     LEFT JOIN poha_planta pp ON p.idpoha = pp.idpoha AND p.idusuario = pp.idusuario
-    LEFT JOIN planta pl ON pl.idplanta = pp.idplanta
+    LEFT JOIN planta pl ON pl.idplanta = pp.idplanta AND pl.estado = 'AC'
     WHERE p.estado = 'AC'
     GROUP BY p.idpoha;
   `);

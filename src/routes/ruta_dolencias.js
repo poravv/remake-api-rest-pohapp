@@ -179,7 +179,7 @@ ruta.put('/put/:iddolencias', verifyToken, validateUpdateDolencias, async (req, 
         return res.status(400).json({ error: 'body requerido' });
     }
     try {
-        const response = await dolenciasService.updateDolencias(req.params.iddolencias, req.body);
+        const response = await dolenciasService.updateDolencias(req.params.iddolencias, req.body, req.user);
         res.json(response);
     } catch (error) {
         console.error(error);

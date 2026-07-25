@@ -29,6 +29,17 @@ jest.mock('sequelize', () => ({
   QueryTypes: { SELECT: 'SELECT' },
 }));
 
+const mockModerate = jest.fn().mockResolvedValue({ status: 'allowed' });
+const mockModerateOrDegrade = jest.fn().mockResolvedValue({ degraded: false, result: { status: 'allowed' } });
+jest.mock('../../src/services/contentModerationService', () => ({
+  moderateActivation: mockModerate,
+  moderateActivationOrDegrade: mockModerateOrDegrade,
+}));
+
+jest.mock('../../src/services/embeddingRegenService', () => ({
+  regenerateEmbeddingsForDolencia: jest.fn().mockResolvedValue({ status: 'ok' }),
+}));
+
 const dolenciasService = require('../../src/services/dolenciasService');
 
 describe('dolenciasService', () => {
@@ -81,13 +92,12 @@ describe('dolenciasService', () => {
 
   describe('createDolencias', () => {
     it('should create dolencia with PE estado for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
       mockCreate.mockResolvedValue({ iddolencias: 5, descripcion: 'Test', estado: 'PE' });
 
-      await dolenciasService.createDolencias({
-        descripcion: 'Test',
-        idusuario: 'user1',
-      });
+      await dolenciasService.createDolencias(
+        { descripcion: 'Test', idusuario: 'user1' },
+        { isAdmin: 0 },
+      );
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ estado: 'PE' })
@@ -95,16 +105,29 @@ describe('dolenciasService', () => {
     });
 
     it('should create dolencia with AC estado for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
       mockCreate.mockResolvedValue({ iddolencias: 6, estado: 'AC' });
 
-      await dolenciasService.createDolencias({
-        descripcion: 'Admin test',
-        idusuario: 'admin1',
-      });
+      await dolenciasService.createDolencias(
+        { descripcion: 'Admin test', idusuario: 'admin1' },
+        { isAdmin: 1 },
+      );
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ estado: 'AC' })
+      );
+    });
+
+    it('should create dolencia with PE estado when moderation is unavailable', async () => {
+      mockModerateOrDegrade.mockResolvedValueOnce({ degraded: true });
+      mockCreate.mockResolvedValue({ iddolencias: 7, estado: 'PE' });
+
+      await dolenciasService.createDolencias(
+        { descripcion: 'Admin test' },
+        { isAdmin: 1 },
+      );
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ estado: 'PE' })
       );
     });
   });
@@ -132,47 +155,57 @@ describe('dolenciasService', () => {
   });
 
   describe('getPendingDolencias', () => {
-    it('should throw 403 for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-      await expect(dolenciasService.getPendingDolencias('user1'))
-        .rejects.toThrow('Acceso denegado');
-    });
-
-    it('should return pending dolencias for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should return pending dolencias ordered by id desc', async () => {
       mockFindAll.mockResolvedValue([{ iddolencias: 1, estado: 'PE' }]);
-      const result = await dolenciasService.getPendingDolencias('admin1');
+      const result = await dolenciasService.getPendingDolencias();
       expect(result).toHaveLength(1);
+      expect(mockFindAll).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { estado: 'PE' } })
+      );
     });
   });
 
   describe('approveDolencias', () => {
-    it('should throw 403 for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-      await expect(dolenciasService.approveDolencias(1, 'user1'))
-        .rejects.toThrow('Acceso denegado');
-    });
+    const pendingDolencia = {
+      toJSON: () => ({ iddolencias: 1, descripcion: 'Dolor de cabeza', estado: 'PE' }),
+    };
 
     it('should throw 404 if not found', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
-      mockUpdate.mockResolvedValue([0]);
-      await expect(dolenciasService.approveDolencias(999, 'admin1'))
-        .rejects.toThrow();
+      mockFindByPk.mockResolvedValue(null);
+      await expect(dolenciasService.approveDolencias(999))
+        .rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('should approve dolencia for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should approve dolencia when moderation allows the content', async () => {
+      mockFindByPk.mockResolvedValue(pendingDolencia);
       mockUpdate.mockResolvedValue([1]);
-      const result = await dolenciasService.approveDolencias(1, 'admin1');
+      const result = await dolenciasService.approveDolencias(1);
       expect(result.message).toContain('aprobada');
+      expect(mockModerate).toHaveBeenCalledWith(
+        'dolencia',
+        expect.objectContaining({ estado: 'AC' }),
+        { iddolencias: 1 },
+      );
+    });
+
+    it('should throw 503 when moderation is unavailable on approve', async () => {
+      mockFindByPk.mockResolvedValue(pendingDolencia);
+      const unavailableError = Object.assign(new Error('no disponible'), {
+        statusCode: 503,
+        code: 'MODERATION_UNAVAILABLE',
+      });
+      mockModerate.mockRejectedValueOnce(unavailableError);
+
+      await expect(dolenciasService.approveDolencias(1))
+        .rejects.toMatchObject({ statusCode: 503, code: 'MODERATION_UNAVAILABLE' });
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 
   describe('rejectDolencias', () => {
-    it('should reject dolencia for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should reject pending dolencia', async () => {
       mockUpdate.mockResolvedValue([1]);
-      const result = await dolenciasService.rejectDolencias(1, 'admin1');
+      const result = await dolenciasService.rejectDolencias(1);
       expect(result.message).toContain('rechazada');
     });
   });

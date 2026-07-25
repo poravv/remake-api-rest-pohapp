@@ -23,6 +23,17 @@ jest.mock('openai', () => ({
   })),
 }));
 
+// Approve-everything moderation: these tests cover relation sync, not the gate.
+jest.mock('../../src/services/contentModerationService', () => ({
+  moderateActivation: jest.fn().mockResolvedValue({ status: 'allowed' }),
+  moderateActivationOrDegrade: jest.fn().mockResolvedValue({ degraded: false, result: { status: 'allowed' } }),
+}));
+
+jest.mock('../../src/services/embeddingRegenService', () => ({
+  regenerateEmbeddingForPoha: jest.fn().mockResolvedValue({ status: 'ok' }),
+  deleteEmbeddingForPoha: jest.fn().mockResolvedValue({ status: 'ok' }),
+}));
+
 const mockSequelizeQuery = jest.fn().mockResolvedValue([[{ texto_entrenamiento: 'texto de prueba' }]]);
 
 // Transaction helper: run callback with a fake transaction object
@@ -83,7 +94,7 @@ describe('pohaService — relations sync (plantas + dolencias)', () => {
 
   describe('createPoha', () => {
     it('validates plantas/dolencias existence and creates pivot rows inside a transaction', async () => {
-      pohaModel.create.mockResolvedValue({ idpoha: 77, toJSON: () => ({ idpoha: 77 }) });
+      pohaModel.create.mockResolvedValue({ idpoha: 77, estado: 'AC', toJSON: () => ({ idpoha: 77 }) });
       pohaModel.findByPk.mockResolvedValue({
         toJSON: () => ({ idpoha: 77, plantas: [1, 2], dolencias: [10] }),
       });
@@ -105,12 +116,13 @@ describe('pohaService — relations sync (plantas + dolencias)', () => {
 
       expect(mockSequelizeTransaction).toHaveBeenCalledTimes(1);
 
+      // Un poha creado como AC solo puede referenciar catálogos activos.
       expect(plantaModel.findAll).toHaveBeenCalledWith(expect.objectContaining({
-        where: { idplanta: { [Op.in]: [1, 2] } },
+        where: { idplanta: { [Op.in]: [1, 2] }, estado: 'AC' },
         transaction: mockFakeTransaction,
       }));
       expect(dolenciasModel.findAll).toHaveBeenCalledWith(expect.objectContaining({
-        where: { iddolencias: { [Op.in]: [10] } },
+        where: { iddolencias: { [Op.in]: [10] }, estado: 'AC' },
         transaction: mockFakeTransaction,
       }));
 

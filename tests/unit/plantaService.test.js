@@ -29,6 +29,17 @@ jest.mock('sequelize', () => ({
   QueryTypes: { SELECT: 'SELECT' },
 }));
 
+const mockModerate = jest.fn().mockResolvedValue({ status: 'allowed' });
+const mockModerateOrDegrade = jest.fn().mockResolvedValue({ degraded: false, result: { status: 'allowed' } });
+jest.mock('../../src/services/contentModerationService', () => ({
+  moderateActivation: mockModerate,
+  moderateActivationOrDegrade: mockModerateOrDegrade,
+}));
+
+jest.mock('../../src/services/embeddingRegenService', () => ({
+  regenerateEmbeddingsForPlanta: jest.fn().mockResolvedValue({ status: 'ok' }),
+}));
+
 const plantaService = require('../../src/services/plantaService');
 
 describe('plantaService', () => {
@@ -90,14 +101,12 @@ describe('plantaService', () => {
 
   describe('createPlanta', () => {
     it('should create planta with PE estado for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
       mockCreate.mockResolvedValue({ idplanta: 5, nombre: 'Test', estado: 'PE' });
 
-      await plantaService.createPlanta({
-        nombre: 'Test',
-        descripcion: 'Test plant',
-        idusuario: 'user1',
-      });
+      await plantaService.createPlanta(
+        { nombre: 'Test', descripcion: 'Test plant', idusuario: 'user1' },
+        { isAdmin: 0 },
+      );
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ estado: 'PE' })
@@ -105,23 +114,48 @@ describe('plantaService', () => {
     });
 
     it('should create planta with AC estado for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
       mockCreate.mockResolvedValue({ idplanta: 6, nombre: 'Test', estado: 'AC' });
 
-      await plantaService.createPlanta({
-        nombre: 'Test',
-        descripcion: 'Test plant',
-        idusuario: 'admin1',
-      });
+      await plantaService.createPlanta(
+        { nombre: 'Test', descripcion: 'Test plant', idusuario: 'admin1' },
+        { isAdmin: 1 },
+      );
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ estado: 'AC' })
       );
     });
 
+    it('should create planta with PE estado when moderation is unavailable', async () => {
+      mockModerateOrDegrade.mockResolvedValueOnce({ degraded: true });
+      mockCreate.mockResolvedValue({ idplanta: 8, estado: 'PE' });
+
+      await plantaService.createPlanta(
+        { nombre: 'Test', descripcion: 'Test plant' },
+        { isAdmin: 1 },
+      );
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ estado: 'PE' })
+      );
+    });
+
+    it('should propagate 422 when moderation rejects the content', async () => {
+      const rejectionError = Object.assign(new Error('rechazado'), {
+        statusCode: 422,
+        code: 'CONTENT_REJECTED',
+      });
+      mockModerateOrDegrade.mockRejectedValueOnce(rejectionError);
+
+      await expect(plantaService.createPlanta(
+        { nombre: 'Spam', descripcion: 'Spam' },
+        { isAdmin: 1 },
+      )).rejects.toMatchObject({ statusCode: 422, code: 'CONTENT_REJECTED' });
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
     it('should invalidate cache after creation', async () => {
       const { invalidateByPrefix } = require('../../src/middleware/cache');
-      mockUsuarioFindByPk.mockResolvedValue(null);
       mockCreate.mockResolvedValue({ idplanta: 7 });
 
       await plantaService.createPlanta({ nombre: 'X', descripcion: 'Y' });
@@ -153,49 +187,73 @@ describe('plantaService', () => {
   });
 
   describe('getPendingPlantas', () => {
-    it('should throw 403 for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-      await expect(plantaService.getPendingPlantas('user1'))
-        .rejects.toThrow('Acceso denegado');
-    });
-
-    it('should return pending plantas for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should return pending plantas ordered by id desc', async () => {
       const pending = [{ idplanta: 1, estado: 'PE' }];
       mockFindAll.mockResolvedValue(pending);
 
-      const result = await plantaService.getPendingPlantas('admin1');
+      const result = await plantaService.getPendingPlantas();
       expect(result).toEqual(pending);
+      expect(mockFindAll).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { estado: 'PE' } })
+      );
     });
   });
 
   describe('approvePlanta', () => {
-    it('should throw 403 for non-admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 0 });
-      await expect(plantaService.approvePlanta(1, 'user1'))
-        .rejects.toThrow('Acceso denegado');
+    const pendingPlanta = {
+      toJSON: () => ({ idplanta: 1, nombre: 'Menta', descripcion: 'Uso tradicional', estado: 'PE' }),
+    };
+
+    it('should throw 404 if not found or already approved', async () => {
+      mockFindByPk.mockResolvedValue(null);
+      await expect(plantaService.approvePlanta(999))
+        .rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('should throw 404 if not found', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
-      mockUpdate.mockResolvedValue([0]);
-      await expect(plantaService.approvePlanta(999, 'admin1'))
-        .rejects.toThrow();
-    });
-
-    it('should approve planta for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should approve planta when moderation allows the content', async () => {
+      mockFindByPk.mockResolvedValue(pendingPlanta);
       mockUpdate.mockResolvedValue([1]);
-      const result = await plantaService.approvePlanta(1, 'admin1');
+
+      const result = await plantaService.approvePlanta(1);
       expect(result.message).toContain('aprobada');
+      expect(mockModerate).toHaveBeenCalledWith(
+        'planta',
+        expect.objectContaining({ estado: 'AC' }),
+        { idplanta: 1 },
+      );
+    });
+
+    it('should throw 422 when moderation rejects the content', async () => {
+      mockFindByPk.mockResolvedValue(pendingPlanta);
+      const rejectionError = Object.assign(new Error('rechazado'), {
+        statusCode: 422,
+        code: 'CONTENT_REJECTED',
+      });
+      mockModerate.mockRejectedValueOnce(rejectionError);
+
+      await expect(plantaService.approvePlanta(1))
+        .rejects.toMatchObject({ statusCode: 422, code: 'CONTENT_REJECTED' });
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw 503 when moderation is unavailable on approve', async () => {
+      mockFindByPk.mockResolvedValue(pendingPlanta);
+      const unavailableError = Object.assign(new Error('no disponible'), {
+        statusCode: 503,
+        code: 'MODERATION_UNAVAILABLE',
+      });
+      mockModerate.mockRejectedValueOnce(unavailableError);
+
+      await expect(plantaService.approvePlanta(1))
+        .rejects.toMatchObject({ statusCode: 503, code: 'MODERATION_UNAVAILABLE' });
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 
   describe('rejectPlanta', () => {
-    it('should reject planta for admin', async () => {
-      mockUsuarioFindByPk.mockResolvedValue({ isAdmin: 1 });
+    it('should reject pending planta', async () => {
       mockUpdate.mockResolvedValue([1]);
-      const result = await plantaService.rejectPlanta(1, 'admin1');
+      const result = await plantaService.rejectPlanta(1);
       expect(result.message).toContain('rechazada');
     });
   });

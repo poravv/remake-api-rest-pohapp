@@ -3,6 +3,8 @@ const database = require('../database');
 const { QueryTypes, Op } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
 const { extractObjectName } = require('./minioService');
+const contentModeration = require('./contentModerationService');
+const embeddingRegen = require('./embeddingRegenService');
 
 // planta.img is varchar(300). Clients that upload via /admin/upload may hand us
 // a MinIO presigned URL (~500 chars of X-Amz-* params), which overflows the
@@ -77,16 +79,57 @@ async function createPlanta(data, authUser) {
     }
 
     const plantaData = sanitizeImgField({ ...data, estado });
+    // Fail-safe: si la moderación no está disponible, la planta se crea como
+    // PE (no se auto-activa) en vez de fallar el alta.
+    const moderation = await contentModeration.moderateActivationOrDegrade('planta', plantaData);
+    if (moderation.degraded) plantaData.estado = 'PE';
     const result = await planta.create(plantaData);
     invalidateByPrefix('plantas');
     invalidateByPrefix('medicinales');
     return result;
 }
 
-async function updatePlanta(idplanta, data) {
-    const result = await planta.update(sanitizeImgField(data), { where: { idplanta } });
+function asPlain(value) {
+    if (!value) return {};
+    return typeof value.toJSON === 'function' ? value.toJSON() : value;
+}
+
+async function refreshPlantEmbeddings(idplanta) {
+    try {
+        return await embeddingRegen.regenerateEmbeddingsForPlanta(idplanta);
+    } catch (err) {
+        console.error(`[plantaService] embedding regen failed for planta ${idplanta}:`, err.message);
+        return { status: 'error', error: err.message };
+    }
+}
+
+async function updatePlanta(idplanta, data, authUser) {
+    const current = await planta.findByPk(idplanta);
+    const isAdmin = authUser && authUser.isAdmin === 1;
+    const sanitized = sanitizeImgField(data);
+    let nextState = isAdmin && ['AC', 'PE', 'IN'].includes(sanitized.estado)
+        ? sanitized.estado
+        : (asPlain(current).estado || 'PE');
+    const updateData = { ...sanitized };
+    if (current || isAdmin) updateData.estado = nextState;
+
+    // Fail-safe: sin moderación disponible el contenido queda PE en vez de 503.
+    const moderation = await contentModeration.moderateActivationOrDegrade('planta', {
+        ...asPlain(current),
+        ...updateData,
+        estado: nextState,
+    }, { idplanta });
+    if (moderation.degraded) {
+        nextState = 'PE';
+        updateData.estado = 'PE';
+    }
+
+    const result = await planta.update(updateData, { where: { idplanta } });
     invalidateByPrefix('plantas');
     invalidateByPrefix('medicinales');
+    if (result[0] > 0 && (nextState === 'AC' || asPlain(current).estado === 'AC')) {
+        await refreshPlantEmbeddings(idplanta);
+    }
     return result;
 }
 
@@ -105,6 +148,16 @@ async function getPendingPlantas() {
 }
 
 async function approvePlanta(idplanta) {
+    const current = await planta.findByPk(idplanta);
+    if (!current || asPlain(current).estado !== 'PE') {
+        const err = new Error('Planta no encontrada o ya aprobada');
+        err.statusCode = 404;
+        throw err;
+    }
+    await contentModeration.moderateActivation('planta', {
+        ...asPlain(current),
+        estado: 'AC',
+    }, { idplanta });
     const result = await planta.update(
         { estado: 'AC' },
         { where: { idplanta, estado: 'PE' } },
@@ -118,7 +171,8 @@ async function approvePlanta(idplanta) {
 
     invalidateByPrefix('plantas');
     invalidateByPrefix('medicinales');
-    return { message: 'Planta aprobada exitosamente', affected: result[0] };
+    const embeddingStatus = await refreshPlantEmbeddings(idplanta);
+    return { message: 'Planta aprobada exitosamente', affected: result[0], embeddingStatus };
 }
 
 async function rejectPlanta(idplanta) {

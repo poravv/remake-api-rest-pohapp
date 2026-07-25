@@ -2,6 +2,8 @@ const dolencias = require('../model/dolencias');
 const database = require('../database');
 const { QueryTypes } = require('sequelize');
 const { invalidateByPrefix } = require('../middleware/cache');
+const contentModeration = require('./contentModerationService');
+const embeddingRegen = require('./embeddingRegenService');
 
 async function searchByDescripcion(descripcion) {
     return database.query(
@@ -43,16 +45,56 @@ async function createDolencias(data, authUser) {
     }
 
     const dolenciaData = { ...data, estado };
+    // Fail-safe: si la moderación no está disponible, la dolencia se crea como
+    // PE (no se auto-activa) en vez de fallar el alta.
+    const moderation = await contentModeration.moderateActivationOrDegrade('dolencia', dolenciaData);
+    if (moderation.degraded) dolenciaData.estado = 'PE';
     const result = await dolencias.create(dolenciaData);
     invalidateByPrefix('dolencias');
     invalidateByPrefix('medicinales');
     return result;
 }
 
-async function updateDolencias(iddolencias, data) {
-    const result = await dolencias.update(data, { where: { iddolencias } });
+function asPlain(value) {
+    if (!value) return {};
+    return typeof value.toJSON === 'function' ? value.toJSON() : value;
+}
+
+async function refreshDolenciaEmbeddings(iddolencias) {
+    try {
+        return await embeddingRegen.regenerateEmbeddingsForDolencia(iddolencias);
+    } catch (err) {
+        console.error(`[dolenciasService] embedding regen failed for dolencia ${iddolencias}:`, err.message);
+        return { status: 'error', error: err.message };
+    }
+}
+
+async function updateDolencias(iddolencias, data, authUser) {
+    const current = await dolencias.findByPk(iddolencias);
+    const isAdmin = authUser && authUser.isAdmin === 1;
+    let nextState = isAdmin && ['AC', 'PE', 'IN'].includes(data.estado)
+        ? data.estado
+        : (asPlain(current).estado || 'PE');
+    const updateData = { ...data };
+    if (current || isAdmin) updateData.estado = nextState;
+
+    // Fail-safe: sin moderación disponible el contenido queda PE en vez de 503.
+    const moderation = await contentModeration.moderateActivationOrDegrade('dolencia', {
+        ...asPlain(current),
+        ...updateData,
+        estado: nextState,
+    }, { iddolencias });
+    if (moderation.degraded) {
+        nextState = 'PE';
+        updateData.estado = 'PE';
+    }
+
+    const result = await dolencias.update(updateData, { where: { iddolencias } });
     invalidateByPrefix('dolencias');
     invalidateByPrefix('medicinales');
+    if (result[0] > 0 && (nextState === 'AC' || asPlain(current).estado === 'AC')) {
+        await refreshDolenciaEmbeddings(iddolencias);
+    }
     return result;
 }
 
@@ -71,6 +113,16 @@ async function getPendingDolencias() {
 }
 
 async function approveDolencias(iddolencias) {
+    const current = await dolencias.findByPk(iddolencias);
+    if (!current || asPlain(current).estado !== 'PE') {
+        const err = new Error('Dolencia no encontrada o ya procesada');
+        err.statusCode = 404;
+        throw err;
+    }
+    await contentModeration.moderateActivation('dolencia', {
+        ...asPlain(current),
+        estado: 'AC',
+    }, { iddolencias });
     const [updated] = await dolencias.update(
         { estado: 'AC' },
         { where: { iddolencias, estado: 'PE' } },
@@ -84,7 +136,8 @@ async function approveDolencias(iddolencias) {
 
     invalidateByPrefix('dolencias');
     invalidateByPrefix('medicinales');
-    return { message: 'Dolencia aprobada', iddolencias };
+    const embeddingStatus = await refreshDolenciaEmbeddings(iddolencias);
+    return { message: 'Dolencia aprobada', iddolencias, embeddingStatus };
 }
 
 async function rejectDolencias(iddolencias) {

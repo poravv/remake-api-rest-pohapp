@@ -48,6 +48,7 @@ jest.mock('../../src/database', () => ({
 const request = require('supertest');
 const express = require('express');
 const retrievalService = require('../../src/services/retrievalService');
+const { buildHistorySummary, isFollowUpQuestion } = require('../../src/services/claudeNlpService');
 
 // Small orthonormal basis so cosine scores are exactly 1 (same axis) or 0.
 function vec(axis) {
@@ -128,6 +129,59 @@ describe('POST /api/pohapp/query-nlp/explica (AI_CONTEXT_MODE=rag)', () => {
       .set('Content-Type', 'application/json')
       .send({ pregunta, idusuario: 'user-uid-1' });
   }
+
+  it('should_build_a_bounded_local_summary_only_for_follow_ups', () => {
+    expect(isFollowUpQuestion('¿Y otra planta para eso?')).toBe(true);
+    expect(isFollowUpQuestion('¿Qué sirve para la gripe?')).toBe(false);
+
+    const summary = buildHistorySummary('¿Y otra planta para eso?', [
+      { pregunta: 'consulta antigua', respuesta: 'respuesta antigua' },
+      { pregunta: '¿Qué sirve para la tos?', respuesta: 'La planta A puede ayudar.' },
+      { pregunta: '¿Cómo se prepara?', respuesta: 'Se prepara en infusión.' },
+    ]);
+
+    expect(summary).toContain('¿Qué sirve para la tos?');
+    expect(summary).toContain('¿Cómo se prepara?');
+    expect(summary).not.toContain('consulta antigua');
+    expect(summary.length).toBeLessThanOrEqual(2400);
+    expect(buildHistorySummary('¿Qué sirve para la gripe?', [])).toBe('');
+  });
+
+  it('should_send_only_the_compact_summary_for_a_follow_up', async () => {
+    db.historial = [
+      { pregunta: 'consulta antigua', respuesta: 'respuesta antigua' },
+      { pregunta: '¿Qué sirve para la tos?', respuesta: 'La planta A puede ayudar.' },
+      { pregunta: '¿Cómo se prepara?', respuesta: 'Se prepara en infusión.' },
+    ];
+    db.embeddings = [{ idpoha: 3, embedding: JSON.stringify(vec(0)), resumen: 'Menta' }];
+    db.vista = [
+      {
+        idpoha: 3,
+        texto_entrenamiento: 'La menta se usa para la digestion.',
+        plantas_detalle_json: JSON.stringify([{ nombre: 'Menta' }]),
+      },
+    ];
+    db.pohasAC = [3];
+    db.plantas = [{ nombre: 'Menta', nombre_cientifico: 'Mentha', imagen: 'menta.jpg' }];
+    mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: vec(0) }] });
+    mockMessagesCreate.mockResolvedValue(
+      anthropicToolResponse({
+        respuesta: 'La menta puede ayudar.',
+        idpoha_refs: [3],
+        confianza: 0.9,
+        off_topic: false,
+      })
+    );
+
+    const res = await ask('¿Y otra planta para eso?');
+
+    expect(res.status).toBe(200);
+    const call = mockMessagesCreate.mock.calls[0][0];
+    expect(call.messages).toHaveLength(1);
+    expect(call.messages[0].content).toContain('Resumen breve de la conversación previa');
+    expect(call.messages[0].content).toContain('¿Qué sirve para la tos?');
+    expect(call.messages[0].content).not.toContain('consulta antigua');
+  });
 
   it('should_answer_with_rag_context_when_similarity_passes', async () => {
     db.embeddings = [{ idpoha: 3, embedding: JSON.stringify(vec(0)), resumen: 'Menta' }];

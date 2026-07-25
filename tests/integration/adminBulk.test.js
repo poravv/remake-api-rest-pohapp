@@ -44,6 +44,17 @@ jest.mock('../../src/database', () => {
     };
 });
 
+const mockModerate = jest.fn().mockResolvedValue({ status: 'allowed' });
+jest.mock('../../src/services/contentModerationService', () => ({
+    moderateActivation: mockModerate,
+}));
+
+jest.mock('../../src/services/embeddingRegenService', () => ({
+    regenerateEmbeddingsForPlanta: jest.fn().mockResolvedValue({ status: 'ok' }),
+    regenerateEmbeddingsForDolencia: jest.fn().mockResolvedValue({ status: 'ok' }),
+    regenerateEmbeddingForPoha: jest.fn().mockResolvedValue({ status: 'ok' }),
+}));
+
 const sequelizeMock = require('../../src/database');
 const fakeTransaction = sequelizeMock.__mockTx;
 
@@ -95,7 +106,14 @@ describe('admin/bulk router', () => {
         expect(res.status).toBe(422);
     });
 
+    function pendingPlanta(id) {
+        return { toJSON: () => ({ idplanta: id, nombre: `Planta ${id}`, descripcion: 'Uso tradicional', estado: 'PE' }) };
+    }
+
     it('returns per-item results with ok/failed summary', async () => {
+        planta.findByPk = jest.fn()
+            .mockResolvedValueOnce(pendingPlanta(10))
+            .mockResolvedValueOnce(pendingPlanta(99));
         planta.update = jest
             .fn()
             .mockResolvedValueOnce([1])
@@ -109,5 +127,52 @@ describe('admin/bulk router', () => {
         expect(res.body.summary).toEqual({ total: 2, ok: 1, failed: 1 });
         expect(res.body.results).toHaveLength(2);
         expect(fakeTransaction.commit).toHaveBeenCalled();
+    });
+
+    it('marks item failed with 422 code when moderation rejects it', async () => {
+        planta.findByPk = jest.fn()
+            .mockResolvedValueOnce(pendingPlanta(10))
+            .mockResolvedValueOnce(pendingPlanta(11));
+        planta.update = jest.fn().mockResolvedValue([1]);
+        mockModerate
+            .mockRejectedValueOnce(Object.assign(new Error('rechazado'), {
+                statusCode: 422,
+                code: 'CONTENT_REJECTED',
+            }))
+            .mockResolvedValueOnce({ status: 'allowed' });
+
+        const res = await request(app)
+            .post('/api/pohapp/admin/bulk/approve')
+            .send({ type: 'planta', ids: [10, 11] });
+
+        expect(res.status).toBe(200);
+        expect(res.body.summary).toEqual({ total: 2, ok: 1, failed: 1 });
+        expect(res.body.results[0]).toMatchObject({
+            id: '10',
+            status: 'failed',
+            error: { code: 'CONTENT_REJECTED' },
+        });
+        expect(res.body.results[1].status).toBe('ok');
+    });
+
+    it('keeps item failed (fail-closed) when moderation is unavailable', async () => {
+        planta.findByPk = jest.fn().mockResolvedValueOnce(pendingPlanta(10));
+        planta.update = jest.fn().mockResolvedValue([1]);
+        mockModerate.mockRejectedValueOnce(Object.assign(new Error('no disponible'), {
+            statusCode: 503,
+            code: 'MODERATION_UNAVAILABLE',
+        }));
+
+        const res = await request(app)
+            .post('/api/pohapp/admin/bulk/approve')
+            .send({ type: 'planta', ids: [10] });
+
+        expect(res.status).toBe(200);
+        expect(res.body.summary).toEqual({ total: 1, ok: 0, failed: 1 });
+        expect(res.body.results[0]).toMatchObject({
+            status: 'failed',
+            error: { code: 'MODERATION_UNAVAILABLE' },
+        });
+        expect(planta.update).not.toHaveBeenCalled();
     });
 });

@@ -35,7 +35,7 @@ function buildResumen(row) {
 }
 
 async function fetchTrainingRow(idpoha) {
-  const [rows] = await sequelize.query(
+  const [rows = []] = await sequelize.query(
     `SELECT v.idpoha, v.texto_entrenamiento, v.dolencias, m.embedding_hash AS stored_hash
        FROM vw_medicina_entrenamiento v
        LEFT JOIN medicina_embeddings m ON m.idpoha = v.idpoha
@@ -46,12 +46,65 @@ async function fetchTrainingRow(idpoha) {
 }
 
 async function fetchAllTrainingRows() {
-  const [rows] = await sequelize.query(
+  const [rows = []] = await sequelize.query(
     `SELECT v.idpoha, v.texto_entrenamiento, v.dolencias, m.embedding_hash AS stored_hash
        FROM vw_medicina_entrenamiento v
        LEFT JOIN medicina_embeddings m ON m.idpoha = v.idpoha`,
   );
   return rows;
+}
+
+async function fetchActivePohaIdsForRelation(column, id) {
+  if (!['idplanta', 'iddolencias'].includes(column)) {
+    throw new Error('Relación no soportada para regeneración de embeddings');
+  }
+  const table = column === 'idplanta' ? 'poha_planta' : 'dolencias_poha';
+  const [rows = []] = await sequelize.query(
+    `SELECT DISTINCT pp.idpoha
+       FROM ${table} pp
+       JOIN poha p ON p.idpoha = pp.idpoha AND p.estado = 'AC'
+      WHERE pp.${column} = :id`,
+    { replacements: { id } },
+  );
+  return rows.map((row) => row.idpoha);
+}
+
+async function regenerateEmbeddingsForRelation(column, id) {
+  const idpohaList = await fetchActivePohaIdsForRelation(column, id);
+  const summary = {
+    relation: column,
+    id,
+    total: idpohaList.length,
+    regenerated: 0,
+    skipped: 0,
+    missing: 0,
+    errors: 0,
+    failed: [],
+  };
+
+  for (const idpoha of idpohaList) {
+    // Sequential by design: approvals can involve many pohas and this keeps
+    // OpenAI rate/cost spikes under control while preserving idempotency.
+    // eslint-disable-next-line no-await-in-loop
+    const result = await regenerateEmbeddingForPoha(idpoha);
+    if (result.status === 'regenerated') summary.regenerated += 1;
+    else if (result.status === 'skipped') summary.skipped += 1;
+    else if (result.status === 'missing') summary.missing += 1;
+    else {
+      summary.errors += 1;
+      summary.failed.push({ idpoha, error: result.error });
+    }
+  }
+
+  return summary;
+}
+
+async function regenerateEmbeddingsForPlanta(idplanta) {
+  return regenerateEmbeddingsForRelation('idplanta', idplanta);
+}
+
+async function regenerateEmbeddingsForDolencia(iddolencias) {
+  return regenerateEmbeddingsForRelation('iddolencias', iddolencias);
 }
 
 /**
@@ -158,5 +211,7 @@ module.exports = {
   buildResumen,
   regenerateEmbeddingForPoha,
   regenerateAllEmbeddings,
+  regenerateEmbeddingsForPlanta,
+  regenerateEmbeddingsForDolencia,
   deleteEmbeddingForPoha,
 };
