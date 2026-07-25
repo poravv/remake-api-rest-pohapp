@@ -31,6 +31,38 @@ const MULTI_CLAUSE_TOP_K = 3;
 const SIMILARITY_THRESHOLD = aiGuardrails.SIMILARITY_THRESHOLD;
 const VECTORS_TTL_MS =
   parseInt(process.env.AI_VECTORS_TTL_SECONDS || '300', 10) * 1000;
+const HYBRID_STOPWORDS = new Set([
+  'algo',
+  'algun',
+  'alguna',
+  'algunas',
+  'algunos',
+  'como',
+  'con',
+  'cual',
+  'cuales',
+  'donde',
+  'duele',
+  'ellas',
+  'ellos',
+  'esta',
+  'estas',
+  'este',
+  'estos',
+  'hay',
+  'para',
+  'por',
+  'que',
+  'sirve',
+  'sobre',
+  'tengo',
+  'tiene',
+  'tienen',
+  'una',
+  'unas',
+  'uno',
+  'unos',
+]);
 
 function normalize(text) {
   if (typeof text !== 'string') return '';
@@ -179,20 +211,57 @@ async function rankVectorCandidates(normalizedQuestion, filas) {
   return { top: merged, similarityTop1 };
 }
 
-/**
- * Hybrid complement: pohas whose registered dolencia appears literally in the
- * normalized question. Catches paraphrase misses and works without OpenAI.
- */
+// REGEXP en MySQL no usa la collation (a diferencia de LIKE): 'n' no matchea
+// 'ñ' ni 'a' matchea 'á'. La pregunta llega des-acentuada por normalize(),
+// pero d.descripcion conserva acentos — cada letra se expande a su clase.
+const ACCENT_CLASSES = {
+  a: '[aáàäâã]',
+  e: '[eéèëê]',
+  i: '[iíìïî]',
+  o: '[oóòöôõ]',
+  u: '[uúùüû]',
+  n: '[nñ]',
+  c: '[cç]',
+};
+
+function accentTolerantPattern(token) {
+  return token
+    .split('')
+    .map((ch) => ACCENT_CLASSES[ch] || ch)
+    .join('');
+}
+
+/** Hybrid complement: match meaningful question words in registered dolencias. */
 async function findHybridByDolencia(normalizedQuestion) {
   if (!normalizedQuestion) return [];
+
+  const tokens = Array.from(
+    new Set(
+      normalizedQuestion
+        .split(/[^a-z0-9]+/i)
+        .filter((token) => token.length >= 3 && !HYBRID_STOPWORDS.has(token))
+    )
+  );
+  if (tokens.length === 0) return [];
+
+  const tokenConditions = tokens
+    .map(
+      (_, index) =>
+        `LOWER(d.descripcion) REGEXP CONCAT('(^|[^[:alnum:]])', :dolenciaToken${index}, '([^[:alnum:]]|$)')`
+    )
+    .join(' OR ');
+  const replacements = Object.fromEntries(
+    tokens.map((token, index) => [`dolenciaToken${index}`, accentTolerantPattern(token)])
+  );
+
   const [rows] = await sequelize.query(
     `SELECT DISTINCT dp.idpoha
        FROM dolencias d
        JOIN dolencias_poha dp ON dp.iddolencias = d.iddolencias
        JOIN poha p ON p.idpoha = dp.idpoha AND p.idusuario = dp.idusuario AND p.estado = 'AC'
-      WHERE :pregunta LIKE CONCAT('%', LOWER(d.descripcion), '%')
+      WHERE (${tokenConditions})
       LIMIT ${HYBRID_MAX}`,
-    { replacements: { pregunta: normalizedQuestion } }
+    { replacements }
   );
   return rows.map((r) => r.idpoha);
 }

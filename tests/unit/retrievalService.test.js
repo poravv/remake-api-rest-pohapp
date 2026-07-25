@@ -183,6 +183,90 @@ describe('retrievalService', () => {
       expect(result.contexto).toContain('[#42]');
     });
 
+    it('should_rescue_compound_migraine_dolencia_by_question_token', async () => {
+      const dolenciaDescripcion = 'Migraña dolor de cabeza';
+      let hybridSql;
+      let hybridOptions;
+      database.query.mockImplementation(async (sql, options) => {
+        if (/FROM medicina_embeddings/i.test(sql)) return [[]];
+        if (/FROM dolencias d/i.test(sql)) {
+          hybridSql = sql;
+          hybridOptions = options;
+          const tokens = Object.values(options.replacements);
+          const matches = tokens.some((token) =>
+            new RegExp(`(^|[^a-z0-9])${token}([^a-z0-9]|$)`, 'i').test(
+              retrievalService.normalize(dolenciaDescripcion)
+            )
+          );
+          return matches
+            ? [[{ idpoha: 22 }]]
+            : [[]];
+        }
+        if (/FROM vw_medicina_entrenamiento/i.test(sql)) {
+          return [[
+            {
+              idpoha: 22,
+              texto_entrenamiento: 'Anis para la migrana.',
+              plantas_detalle_json: JSON.stringify([{ nombre: 'Anis' }]),
+            },
+          ]];
+        }
+        return [[]];
+      });
+      mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: vec(0) }] });
+
+      const result = await retrievalService.retrieve('algo para la migraña');
+
+      expect(result.ids).toEqual([22]);
+      expect(result.contexto).toContain('[#22] Anis');
+      expect(hybridSql).toMatch(/REGEXP/);
+      // Patrón tolerante a acentos: REGEXP no usa collation, así que 'migrana'
+      // (pregunta normalizada) debe poder matchear 'Migraña' (DB con acentos).
+      expect(hybridOptions.replacements.dolenciaToken0).toBe(
+        'm[iíìïî]gr[aáàäâã][nñ][aáàäâã]'
+      );
+      expect(new RegExp(hybridOptions.replacements.dolenciaToken0).test('migraña')).toBe(true);
+      expect(hybridOptions.replacements).not.toHaveProperty('pregunta');
+    });
+
+    it('should_match_tos_as_a_word_without_matching_tostado', async () => {
+      const dolencias = [
+        { idpoha: 30, descripcion: 'Tostado' },
+        { idpoha: 31, descripcion: 'Tos' },
+      ];
+      let hybridSql;
+      database.query.mockImplementation(async (sql, options) => {
+        if (/FROM medicina_embeddings/i.test(sql)) return [[]];
+        if (/FROM dolencias d/i.test(sql)) {
+          hybridSql = sql;
+          const tokens = Object.values(options.replacements);
+          const matching = dolencias.filter((dolencia) =>
+            tokens.some((token) =>
+              new RegExp(`(^|[^a-z0-9])${token}([^a-z0-9]|$)`, 'i').test(dolencia.descripcion)
+            )
+          );
+          return [matching.map(({ idpoha }) => ({ idpoha }))];
+        }
+        if (/FROM vw_medicina_entrenamiento/i.test(sql)) {
+          return [[
+            {
+              idpoha: 31,
+              texto_entrenamiento: 'Tos.',
+              plantas_detalle_json: JSON.stringify([{ nombre: 'Antitusivo' }]),
+            },
+          ]];
+        }
+        return [[]];
+      });
+      mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: vec(0) }] });
+
+      const result = await retrievalService.retrieve('algo para la tos');
+
+      expect(result.ids).toEqual([31]);
+      expect(result.ids).not.toContain(30);
+      expect(hybridSql).toContain('[^[:alnum:]]');
+    });
+
     it('should_union_clauses_when_question_is_multi_dolencia', async () => {
       // One embedding call per clause; each clause matches a different poha.
       setupDb({
