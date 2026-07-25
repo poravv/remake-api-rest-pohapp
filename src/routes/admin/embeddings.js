@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, requireAdmin } = require('../../middleware/auth');
 const rateLimitAdmin = require('../../middleware/rateLimitAdmin');
-const catalogRegen = require('../../services/catalogRegenService');
+const embeddingRegen = require('../../services/embeddingRegenService');
 
 router.use(verifyToken, requireAdmin, rateLimitAdmin);
 
@@ -39,16 +39,16 @@ router.use(verifyToken, requireAdmin, rateLimitAdmin);
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
  *       '503':
- *         description: Error al reconstruir el catálogo Claude
+ *         description: OPENAI_API_KEY no configurada
  */
 router.post('/regenerate', async (_req, res) => {
   try {
-    const summary = await catalogRegen.regenerateCatalog();
+    const summary = await embeddingRegen.regenerateAllEmbeddings();
     res.json(summary);
   } catch (err) {
-    console.error('[admin/embeddings] catalog rebuild failed:', err);
+    console.error('[admin/embeddings] full regen failed:', err);
     res.status(err.statusCode || 500).json({
-      error: 'Error regenerando catálogo',
+      error: 'Error regenerando embeddings',
       message: err.message,
     });
   }
@@ -83,13 +83,19 @@ router.post('/regenerate/:idpoha', async (req, res) => {
   if (!Number.isFinite(idpoha) || idpoha <= 0) {
     return res.status(400).json({ error: 'idpoha invalido' });
   }
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({
+      error: 'Servicio de IA no configurado',
+      message: 'OPENAI_API_KEY no configurada',
+    });
+  }
   try {
-    const result = await catalogRegen.invalidateCatalogForPoha(idpoha);
+    const result = await embeddingRegen.regenerateEmbeddingForPoha(idpoha);
     res.json(result);
   } catch (err) {
-    console.error('[admin/embeddings] single catalog invalidation failed:', err);
+    console.error('[admin/embeddings] single regen failed:', err);
     res.status(err.statusCode || 500).json({
-      error: 'Error invalidando catálogo',
+      error: 'Error regenerando embedding',
       message: err.message,
     });
   }
