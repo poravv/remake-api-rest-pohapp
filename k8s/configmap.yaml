@@ -27,7 +27,7 @@ data:
   # RAG — modo de contexto del asistente: catalog (catalogo completo) | rag
   # (top-k recuperado por embeddings). Rollback = volver a "catalog" +
   # rollout restart, sin cambio de imagen.
-  AI_CONTEXT_MODE: "catalog"
+  AI_CONTEXT_MODE: "rag"
   AI_SIMILARITY_MIN: "0.35"
   AI_VECTORS_TTL_SECONDS: "300"
 
