@@ -62,6 +62,9 @@ jobs:
     runs-on: self-hosted
     name: Build and Deploy Pohapp Backend + Database
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      packages: write
 
     steps:
       - name: Checkout code
@@ -79,8 +82,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}   # nativo (permissions: packages: write); sin PAT manual
 
-      # Versión de release desde package.json — la imagen se taggea v<version>
-      # y k8s/backend-deployment.yaml la pinnea, así ArgoCD detecta el cambio.
+      # Versión de release desde package.json — se usa como tag human-readable
+      # adicional en GHCR (v<version>). El manifiesto k8s pinnea por sha (ver
+      # "Pin deployed image tag in Git manifest"); Argo ignora ese campo a
+      # propósito (ignoreDifferences), el deploy real de imagen lo hace el CI.
       - name: Get app version
         id: appver
         run: echo "version=v$(grep -m1 '"version"' package.json | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')" >> "$GITHUB_OUTPUT"
@@ -110,9 +115,7 @@ jobs:
           platforms: linux/amd64
 
       # --- Kubernetes deploy ---
-      - name: Ensure namespace exists
-        run: |
-          kubectl get ns ${{ env.NAMESPACE }} || kubectl create ns ${{ env.NAMESPACE }}
+      # Namespace la crea Argo (CreateNamespace=true en la Application pohapp).
 
       # Sin image pull secret: el paquete GHCR es PÚBLICO (pull anónimo).
       # Si se volviera privado, restaurar este paso con un PAT en secrets.GHCR_PAT.
@@ -158,19 +161,9 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           rm /tmp/firebase-sa.json
 
-      - name: Apply configmap
-        run: |
-          kubectl apply -f k8s/configmap.yaml -n ${{ env.NAMESPACE }}
-
-      - name: Deploy database
-        run: |
-          set -euo pipefail
-          echo "💾 Applying MySQL (Deployment + PVC + Service)..."
-          kubectl apply -f k8s/mysql-deployment.yaml -n ${{ env.NAMESPACE }}
-          echo "⏳ Waiting rollout for MySQL deployment..."
-          kubectl rollout status deployment/mysql -n ${{ env.NAMESPACE }} --timeout=600s
-          echo "⏳ Waiting pod readiness (label app=mysql)..."
-          kubectl wait --for=condition=ready pod -l app=mysql -n ${{ env.NAMESPACE }} --timeout=600s
+      # configmap.yaml, mysql-deployment.yaml, redis-deployment.yaml y minio.yaml
+      # (todo el path k8s/, salvo los excluidos en la Application pohapp) los
+      # aplica Argo. El CI ya no los apply-ea.
 
       - name: Test database connection
         run: |
@@ -178,24 +171,6 @@ jobs:
           echo "🔍 Testing database connection..."
           MYSQL_POD=$(kubectl get pods -n ${{ env.NAMESPACE }} -l app=mysql -o jsonpath='{.items[0].metadata.name}')
           kubectl exec -n ${{ env.NAMESPACE }} "$MYSQL_POD" -- sh -c 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"'
-
-      - name: Deploy redis
-        run: |
-          set -euo pipefail
-          echo "🧠 Applying Redis (Deployment + PVC + Service)..."
-          kubectl apply -f k8s/redis-deployment.yaml -n ${{ env.NAMESPACE }}
-          echo "⏳ Waiting rollout for Redis deployment..."
-          kubectl rollout status deployment/redis -n ${{ env.NAMESPACE }} --timeout=600s
-          echo "⏳ Waiting pod readiness (label app=redis)..."
-          kubectl wait --for=condition=ready pod -l app=redis -n ${{ env.NAMESPACE }} --timeout=600s
-
-      - name: Deploy MinIO (interno)
-        run: |
-          set -euo pipefail
-          echo "🗄️  Applying MinIO propio (interno, sin exponer)..."
-          kubectl apply -f k8s/minio.yaml -n ${{ env.NAMESPACE }}
-          echo "⏳ Waiting rollout for MinIO deployment..."
-          kubectl rollout status deployment/pohapp-minio -n ${{ env.NAMESPACE }} --timeout=600s
 
       - name: AI setup (schema, vista y embeddings)
         run: |
@@ -214,8 +189,10 @@ jobs:
       - name: Deploy backend
         run: |
           set -euo pipefail
-          echo "🔧 Applying backend manifests..."
-          kubectl apply -f k8s/backend-deployment.yaml -n ${{ env.NAMESPACE }}
+          # backend-deployment.yaml (k8s/) lo aplica Argo. La Application pohapp
+          # tiene ignoreDifferences explicito sobre containers[0].image ("el CI
+          # fija el sha, no Argo"), asi que el deploy real de imagen sigue
+          # siendo responsabilidad del CI via kubectl set image.
           echo "📌 Pin image to current commit..."
           kubectl set image deployment/pohapp-backend \
             pohapp-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA} \
@@ -237,6 +214,25 @@ jobs:
           done
           echo "❌ Backend health check failed"
           exit 1
+
+      - name: Pin deployed image tag in Git manifest
+        run: |
+          set -euo pipefail
+          NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA}"
+
+          sed -i -E "s#image: ghcr\.io/poravv/remake-api-rest-pohapp:[A-Za-z0-9_.-]+#image: ${NEW_IMAGE}#" \
+            k8s/backend-deployment.yaml
+
+          if git diff --quiet -- k8s/backend-deployment.yaml; then
+            echo "ℹ️ Git ya tenía el tag ${SHORT_SHA}, nada que commitear"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/backend-deployment.yaml
+          git commit -m "chore(k8s): pin backend image to sha-${SHORT_SHA} [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Dump diagnostics on failure
         if: failure()

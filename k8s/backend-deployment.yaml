@@ -25,10 +25,11 @@ spec:
     spec:
       containers:
       - name: pohapp-backend
-        # Pin por versión de release (package.json) — ArgoCD solo redespliega si
-        # el manifiesto cambia; :latest no genera diff. El CI taggea la imagen
-        # con esta misma versión.
-        image: ghcr.io/poravv/remake-api-rest-pohapp:v1.1.1
+        # Tag inmutable por sha corto del commit desplegado. La Application de
+        # Argo ignora este campo a propósito (ignoreDifferences) — el deploy
+        # real de imagen lo hace el CI (kubectl set image); este valor queda
+        # en Git solo como referencia/documentación del último tag deployado.
+        image: ghcr.io/poravv/remake-api-rest-pohapp:sha-0128e03
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
