@@ -29,7 +29,7 @@ spec:
         # Argo ignora este campo a propósito (ignoreDifferences) — el deploy
         # real de imagen lo hace el CI (kubectl set image); este valor queda
         # en Git solo como referencia/documentación del último tag deployado.
-        image: ghcr.io/poravv/remake-api-rest-pohapp:sha-0128e03
+        image: ghcr.io/poravv/remake-api-rest-pohapp:sha-49b968d
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
