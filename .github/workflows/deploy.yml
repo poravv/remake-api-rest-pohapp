@@ -172,6 +172,9 @@ jobs:
           MYSQL_POD=$(kubectl get pods -n ${{ env.NAMESPACE }} -l app=mysql -o jsonpath='{.items[0].metadata.name}')
           kubectl exec -n ${{ env.NAMESPACE }} "$MYSQL_POD" -- sh -c 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"'
 
+      # k8s/ai-setup-job.yaml está explícitamente excluido del path que
+      # trackea Argo (exclude: '{...,ai-setup-job.yaml,...}' en la
+      # Application pohapp) — no genera drift, Argo ni lo mira.
       - name: AI setup (schema, vista y embeddings)
         run: |
           set -euo pipefail
@@ -193,6 +196,12 @@ jobs:
           # tiene ignoreDifferences explicito sobre containers[0].image ("el CI
           # fija el sha, no Argo"), asi que el deploy real de imagen sigue
           # siendo responsabilidad del CI via kubectl set image.
+          # TODO: quitar este kubectl set image cuando la Application pohapp
+          # pase a selfHeal:true y se le saque el ignoreDifferences de
+          # containers[0].image — en ese punto el sync de Argo pasa a ser el
+          # deploy de imagen (pin en Git + Argo aplica). Mientras selfHeal
+          # esté en false, este puente no genera drift porque el pin en Git
+          # queda con el mismo sha que ya está corriendo.
           echo "📌 Pin image to current commit..."
           kubectl set image deployment/pohapp-backend \
             pohapp-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA} \
