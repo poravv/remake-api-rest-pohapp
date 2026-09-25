@@ -18,7 +18,10 @@ services:
       - pohapp-net
 
   minio:
-    image: minio/minio:latest
+    # MinIO retiró sus imágenes públicas. -dev trae sh y mc; root porque los
+    # volúmenes locales existentes son de root (Chainguard corre como 65532).
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:d7c906993247627c19f37fc1fa302c34cf2d209ae0e7dc7d52fb0be6ac2849ba
+    user: "0:0"
     container_name: pohapp-minio
     ports:
       - "9000:9000"   # API / SDK
@@ -38,7 +41,7 @@ services:
       retries: 5
 
   minio-init:
-    image: minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:f0dd93b48af1f8a641edcd3c64661c8dbe05189bd2ef2f8cea216eb18af10bf8
     container_name: pohapp-minio-init
     depends_on:
       minio:
